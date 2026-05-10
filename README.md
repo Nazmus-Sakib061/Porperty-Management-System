@@ -42,9 +42,13 @@ Phase 4 adds tenant management with unit mapping, photo upload, and document upl
    ```powershell
    C:\xampp\php\php.exe setup\migrate_phase4_tenants.php
    ```
-7. Seed the first owner user:
-   ```powershell
-   C:\xampp\php\php.exe setup\seed_admin.php --name="Owner" --email="owner@example.com" --password="Use-A-Strong-Password-123!" --role="owner"
+7. Configure Google OAuth in `.env`:
+   ```env
+   GOOGLE_CLIENT_ID=your-client-id
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google-callback.php
+   APP_FRONTEND_URL=http://localhost:5173/
+   APP_POST_LOGIN_REDIRECT=http://localhost:5173/
    ```
 8. Copy `frontend/.env.example` to `frontend/.env` if you want to override the API base URL.
 
@@ -70,10 +74,9 @@ Then open the Vite URL shown in Terminal 2, usually `http://localhost:5173`.
 
 ## Phase 1
 
-- Secure login and logout
-- Owner registration when no owner exists yet
+- Google-only sign-in and logout
+- First owner creation from the initial Google account when the database is empty
 - Owner-driven manager/staff account creation
-- Password hashing and password policy checks
 - Session hardening and login lockouts
 - Profile update, password change, and photo upload
 - Server-side role permissions

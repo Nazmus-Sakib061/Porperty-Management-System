@@ -19,12 +19,14 @@ api_response([
                 'ownerRegistrationOpen' => count_owner_accounts() === 0,
                 'roles' => allowed_roles(),
                 'dbAvailable' => true,
+                'googleLoginEnabled' => google_oauth_enabled(),
             ];
         } catch (Throwable $exception) {
             return [
                 'ownerRegistrationOpen' => false,
                 'roles' => allowed_roles(),
                 'dbAvailable' => false,
+                'googleLoginEnabled' => google_oauth_enabled(),
             ];
         }
     })(),

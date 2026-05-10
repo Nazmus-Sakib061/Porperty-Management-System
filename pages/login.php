@@ -8,71 +8,27 @@ if (is_logged_in()) {
     redirect((string) app_config('dashboard_path', 'pages/dashboard.php'));
 }
 
-$error = null;
-$emailValue = '';
+$googleLoginEnabled = google_oauth_enabled();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $emailValue = trim((string) ($_POST['email'] ?? ''));
+render_auth_start('Sign in with Google', 'Use your Google account to continue.');
 
-    if (!verify_csrf_token($_POST['csrf_token'] ?? null)) {
-        $error = 'Security token expired. Please refresh and try again.';
-    } else {
-        try {
-            $user = authenticate_user($emailValue, (string) ($_POST['password'] ?? ''));
+echo '<p class="lead">Password login and manual registration are removed. Only Google sign-in remains active.</p>';
+echo '<div class="google-login-cta">';
 
-            if ($user === null) {
-                $error = 'Invalid email or password, or the account is inactive.';
-            } else {
-                login_user($user);
-                set_flash('success', 'Welcome back, ' . ($user['name'] ?? 'user') . '.');
-                redirect((string) app_config('dashboard_path', 'pages/dashboard.php'));
-            }
-        } catch (Throwable $exception) {
-            $error = 'Authentication is not ready yet. Please verify the database connection and users table.';
-        }
-    }
+if ($googleLoginEnabled) {
+    echo '<a class="google-login-button" href="' . e(app_url('api/auth/google-start.php')) . '">';
+    echo '<span class="google-login-badge" aria-hidden="true">G</span>';
+    echo '<span>Continue with Google</span>';
+    echo '</a>';
+    echo '<p class="google-login-note">You will be redirected to Google and returned here after sign-in.</p>';
+} else {
+    echo '<button class="google-login-button" type="button" disabled>';
+    echo '<span class="google-login-badge" aria-hidden="true">G</span>';
+    echo '<span>Continue with Google</span>';
+    echo '</button>';
+    echo '<p class="google-login-note">Configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI to enable login.</p>';
 }
 
-render_auth_start('Sign in');
-render_flash_messages();
+echo '</div>';
 
-if ($error !== null) {
-    echo '<div class="alert alert-danger">' . e($error) . '</div>';
-}
-?>
-                <form class="auth-form" method="post" novalidate>
-                    <?= csrf_field() ?>
-
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input
-                            id="email"
-                            name="email"
-                            type="email"
-                            value="<?= e($emailValue) ?>"
-                            placeholder="name@example.com"
-                            autocomplete="email"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input
-                            id="password"
-                            name="password"
-                            type="password"
-                            placeholder="Enter your password"
-                            autocomplete="current-password"
-                            required
-                        >
-                    </div>
-
-                    <button class="button" type="submit">Sign in</button>
-                </form>
-
-                <p class="auth-footer">
-                    Phase 1 security is active. Use the React app for owner registration and account management.
-                </p>
-<?php
 render_auth_end();

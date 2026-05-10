@@ -49,6 +49,7 @@ header('Pragma: no-cache');
 
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/users.php';
+require_once __DIR__ . '/oauth.php';
 require_once __DIR__ . '/properties.php';
 require_once __DIR__ . '/units.php';
 require_once __DIR__ . '/tenants.php';

@@ -31,6 +31,14 @@ return [
         'tenant_document_directory' => 'uploads/tenants/documents',
         'property_default_country' => getenv('APP_PROPERTY_DEFAULT_COUNTRY') ?: 'Bangladesh',
     ],
+    'oauth' => [
+        'google' => [
+            'client_id' => getenv('GOOGLE_CLIENT_ID') ?: '',
+            'client_secret' => getenv('GOOGLE_CLIENT_SECRET') ?: '',
+            'redirect_uri' => getenv('GOOGLE_REDIRECT_URI') ?: '',
+            'post_login_redirect' => getenv('APP_POST_LOGIN_REDIRECT') ?: (getenv('APP_FRONTEND_URL') ?: 'http://localhost:5173/'),
+        ],
+    ],
     'legacy_roles' => [
         'admin' => 'owner',
     ],
