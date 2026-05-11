@@ -1855,11 +1855,6 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
             <div
               className="property-modal-backdrop"
               role="presentation"
-              onClick={(event) => {
-                if (event.target === event.currentTarget) {
-                  cancelPropertyForm();
-                }
-              }}
             >
               <div
                 className="property-modal-sheet"
@@ -1887,11 +1882,6 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
             <div
               className="property-modal-backdrop"
               role="presentation"
-              onClick={(event) => {
-                if (event.target === event.currentTarget) {
-                  setPropertyFormMode('detail');
-                }
-              }}
             >
               <div
                 className="property-modal-sheet property-modal-sheet-wide"
