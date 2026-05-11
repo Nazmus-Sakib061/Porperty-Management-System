@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   changePassword,
   createUser,
@@ -7,6 +7,8 @@ import {
   getProperties,
   listUsers,
   login,
+  loginWithGoogleCode,
+  loginWithGoogleIdToken,
   logout,
   registerOwner,
   updateProfile,
@@ -17,8 +19,8 @@ import UnitsScreen from './UnitsScreen';
 import TenantsScreen from './TenantsScreen';
 
 const defaultLoginForm = {
-  email: '',
-  password: ''
+  email: 'admin@admin.com',
+  password: '1234'
 };
 
 const defaultRegisterForm = {
@@ -40,6 +42,60 @@ const defaultPasswordForm = {
   newPassword: '',
   confirmPassword: ''
 };
+
+const defaultSetup = {
+  ownerRegistrationOpen: false,
+  roles: [],
+  googleLoginEnabled: false,
+  googleOauthEnabled: false,
+  googleClientId: ''
+};
+
+const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
+let googleIdentityScriptPromise = null;
+
+function loadGoogleIdentityScript() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.reject(new Error('Google sign-in is only available in the browser.'));
+  }
+
+  if (window.google?.accounts?.id) {
+    return Promise.resolve();
+  }
+
+  if (!googleIdentityScriptPromise) {
+    googleIdentityScriptPromise = new Promise((resolve, reject) => {
+      const existingScript = document.querySelector(`script[src="${GOOGLE_IDENTITY_SCRIPT_SRC}"]`);
+
+      if (existingScript) {
+        existingScript.addEventListener('load', () => resolve(), { once: true });
+        existingScript.addEventListener(
+          'error',
+          () => {
+            googleIdentityScriptPromise = null;
+            reject(new Error('Unable to load Google sign-in right now.'));
+          },
+          { once: true }
+        );
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = GOOGLE_IDENTITY_SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = () => {
+        googleIdentityScriptPromise = null;
+        reject(new Error('Unable to load Google sign-in right now.'));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  return googleIdentityScriptPromise;
+}
 
 function formatDateTime(value) {
   if (!value) {
@@ -300,7 +356,7 @@ function App() {
   const [booting, setBooting] = useState(true);
   const [session, setSession] = useState(null);
   const [csrfToken, setCsrfToken] = useState('');
-  const [setup, setSetup] = useState({ ownerRegistrationOpen: false, roles: [] });
+  const [setup, setSetup] = useState(defaultSetup);
   const [summary, setSummary] = useState(null);
   const [dashboardProperties, setDashboardProperties] = useState([]);
   const [dashboardLoading, setDashboardLoading] = useState(false);
@@ -331,9 +387,16 @@ function App() {
   const [usersSearchInput, setUsersSearchInput] = useState('');
   const [usersQuery, setUsersQuery] = useState('');
   const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [googleSignInReady, setGoogleSignInReady] = useState(false);
+  const profileMenuRef = useRef(null);
+  const googleCodeClientRef = useRef(null);
+  const googleButtonContainerRef = useRef(null);
 
   const roleLabel = useMemo(() => session?.roleLabel || 'Guest', [session]);
-  const googleLoginEnabled = Boolean(setup.googleLoginEnabled);
+  const googleClientId = String(setup.googleClientId || '').trim();
+  const googleLoginEnabled = Boolean(googleClientId);
+  const googleOauthEnabled = Boolean(setup.googleOauthEnabled);
   const canManageUsers = Boolean(session?.permissions?.canManageUsers);
   const canViewTenants = Boolean(session?.permissions?.canViewTenants);
   const ownerRegistrationOpen = Boolean(setup.ownerRegistrationOpen);
@@ -383,7 +446,7 @@ function App() {
         }
 
         setCsrfToken(data.csrfToken || '');
-        setSetup(data.setup || { ownerRegistrationOpen: false, roles: [] });
+        setSetup(data.setup || defaultSetup);
         setSession(data.user || null);
 
         if (data.user) {
@@ -433,7 +496,7 @@ function App() {
     if (authMessage === 'google_failed') {
       setError('Google sign-in failed. Please try again.');
     } else if (authMessage === 'google_disabled') {
-      setError('Google sign-in is not configured yet.');
+      setError('Google sign-in is not configured yet. Check the Google settings in .env.');
     } else if (authMessage === 'google_success') {
       setNotice('Signed in with Google.');
     }
@@ -441,6 +504,166 @@ function App() {
     url.searchParams.delete('auth');
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || booting || session) {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code') || '';
+    const state = url.searchParams.get('state') || '';
+    const authError = url.searchParams.get('error') || '';
+
+    if (!code && !authError) {
+      return;
+    }
+
+    let mounted = true;
+
+    async function finishGoogleRedirectLogin() {
+      if (authError) {
+        setError('Google sign-in was cancelled or blocked. Please try again.');
+        url.searchParams.delete('code');
+        url.searchParams.delete('state');
+        url.searchParams.delete('scope');
+        url.searchParams.delete('authuser');
+        url.searchParams.delete('prompt');
+        url.searchParams.delete('error');
+        url.searchParams.delete('error_description');
+        window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+        return;
+      }
+
+      resetStatus();
+      setBusyTask('google');
+
+      try {
+        const data = await loginWithGoogleCode(code, state);
+
+        if (!mounted) {
+          return;
+        }
+
+        setSession(data.user || null);
+        setCsrfToken(data.csrfToken || '');
+        setSetup((current) => ({ ...current, ownerRegistrationOpen: false }));
+        setSummary(null);
+        setDashboardProperties([]);
+        setScreen(data.user?.mustChangePassword ? 'profile' : 'dashboard');
+        setNotice('Signed in with Google.');
+      } catch (err) {
+        if (mounted) {
+          setError(err.message || 'Google sign-in failed.');
+        }
+      } finally {
+        if (mounted) {
+          setBusyTask('');
+          url.searchParams.delete('code');
+          url.searchParams.delete('state');
+          url.searchParams.delete('scope');
+          url.searchParams.delete('authuser');
+          url.searchParams.delete('prompt');
+          url.searchParams.delete('error');
+          url.searchParams.delete('error_description');
+          window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+        }
+      }
+    }
+
+    finishGoogleRedirectLogin();
+
+    return () => {
+      mounted = false;
+    };
+  }, [booting, session]);
+
+  useEffect(() => {
+    let mounted = true;
+    googleCodeClientRef.current = null;
+
+    if (booting || session || !googleLoginEnabled) {
+      setGoogleSignInReady(false);
+      return () => {
+        mounted = false;
+      };
+    }
+
+    async function prepareGooglePopup() {
+      try {
+        await loadGoogleIdentityScript();
+
+        if (!mounted || !window.google?.accounts?.id) {
+          return;
+        }
+
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          ux_mode: 'redirect',
+          login_uri: 'http://localhost:8000/api/auth/google-callback.php',
+          callback: async (response) => {
+            if (!response?.credential) {
+              setError('Google did not return a sign-in credential.');
+              return;
+            }
+
+            setBusyTask('google');
+
+            try {
+              const data = await loginWithGoogleIdToken(response.credential);
+
+              if (!mounted) {
+                return;
+              }
+
+              setSession(data.user || null);
+              setCsrfToken(data.csrfToken || '');
+              setSetup((current) => ({ ...current, ownerRegistrationOpen: false }));
+              setSummary(null);
+              setDashboardProperties([]);
+              setScreen(data.user?.mustChangePassword ? 'profile' : 'dashboard');
+              setNotice('Signed in with Google.');
+            } catch (err) {
+              if (mounted) {
+                setError(err.message || 'Google sign-in failed.');
+              }
+            } finally {
+              if (mounted) {
+                setBusyTask('');
+              }
+            }
+          }
+        });
+
+        if (googleButtonContainerRef.current) {
+          googleButtonContainerRef.current.innerHTML = '';
+          window.google.accounts.id.renderButton(googleButtonContainerRef.current, {
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            width: 320
+          });
+        }
+
+        if (mounted) {
+          setGoogleSignInReady(true);
+        }
+      } catch {
+        if (mounted) {
+          setGoogleSignInReady(false);
+        }
+      }
+    }
+
+    setGoogleSignInReady(false);
+    prepareGooglePopup();
+
+    return () => {
+      mounted = false;
+      googleCodeClientRef.current = null;
+    };
+  }, [booting, googleClientId, googleLoginEnabled, session]);
 
   useEffect(() => {
     if (!session) {
@@ -470,6 +693,34 @@ function App() {
       setScreen('dashboard');
     }
   }, [canManageUsers, screen, session]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event) {
+      const menu = profileMenuRef.current;
+
+      if (menu && !menu.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setProfileMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [profileMenuOpen]);
 
   useEffect(() => {
     if (!session || screen !== 'users' || !canManageUsers) {
@@ -568,12 +819,18 @@ function App() {
   }
 
   function handleGoogleLogin() {
-    if (!googleLoginEnabled) {
-      setError('Google sign-in is not configured yet.');
+    if (!googleOauthEnabled) {
+      setError('Configure Google sign-in in .env to continue.');
       return;
     }
 
-    window.location.assign('/api/auth/google-start.php');
+    resetStatus();
+
+    try {
+      window.location.assign('/api/auth/google-start.php');
+    } catch (err) {
+      setError(err.message || 'Google sign-in is not configured yet.');
+    }
   }
 
   async function handleLogin(event) {
@@ -626,13 +883,14 @@ function App() {
   async function handleLogout() {
     resetStatus();
     setBusyTask('logout');
+    setProfileMenuOpen(false);
 
     try {
       await logout(csrfToken);
       const data = await getSession();
       setSession(data.user || null);
       setCsrfToken(data.csrfToken || '');
-      setSetup(data.setup || { ownerRegistrationOpen: false, roles: [] });
+      setSetup(data.setup || defaultSetup);
       setSummary(null);
       setDashboardProperties([]);
       setDashboardSearch('');
@@ -659,6 +917,7 @@ function App() {
       setError(err.message || 'Logout failed.');
     } finally {
       setBusyTask('');
+      setProfileMenuOpen(false);
     }
   }
 
@@ -793,6 +1052,10 @@ function App() {
       <AuthScreen
         error={error}
         googleLoginEnabled={googleLoginEnabled}
+        googleOauthEnabled={googleOauthEnabled}
+        googleSignInReady={googleSignInReady}
+        busyTask={busyTask}
+        googleButtonContainerRef={googleButtonContainerRef}
         notice={notice}
         onGoogleLogin={handleGoogleLogin}
       />
@@ -859,8 +1122,34 @@ function App() {
               <UIIcon name="bell" />
               <span className="notification-dot" />
             </button>
-            <div className="session-avatar session-avatar-inline">
-              {userPhoto ? <img src={userPhoto} alt="" /> : <span>{initials(session.name)}</span>}
+            <div className="profile-menu" ref={profileMenuRef}>
+              <button
+                className="session-avatar session-avatar-inline profile-menu-trigger"
+                type="button"
+                aria-label="Account menu"
+                aria-expanded={profileMenuOpen}
+                aria-haspopup="menu"
+                onClick={() => setProfileMenuOpen((current) => !current)}
+              >
+                {userPhoto ? <img src={userPhoto} alt="" /> : <span>{initials(session.name)}</span>}
+              </button>
+              {profileMenuOpen ? (
+                <div className="profile-menu-popover" role="menu" aria-label="Account actions">
+                  <div className="profile-menu-user">
+                    <strong>{session.name}</strong>
+                    <span>{session.email}</span>
+                  </div>
+                  <button
+                    className="profile-menu-item profile-menu-item-danger"
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={busyTask !== ''}
+                    role="menuitem"
+                  >
+                    {busyTask === 'logout' ? 'Signing out...' : 'Logout'}
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -972,7 +1261,16 @@ function App() {
   );
 }
 
-function AuthScreen({ error, googleLoginEnabled, notice, onGoogleLogin }) {
+function AuthScreen({
+  busyTask,
+  error,
+  googleButtonContainerRef,
+  googleLoginEnabled,
+  googleOauthEnabled,
+  googleSignInReady,
+  notice,
+  onGoogleLogin
+}) {
   return (
     <div className="app-surface auth-surface">
       <section className="auth-layout auth-layout-google">
@@ -986,25 +1284,22 @@ function AuthScreen({ error, googleLoginEnabled, notice, onGoogleLogin }) {
               <span>Property dashboard</span>
             </div>
           </div>
-          <p className="eyebrow">Google-only access</p>
-          <h1>Sign in with Google and enter the dashboard.</h1>
-          <p>
-            Password login and public owner registration are removed from the UI. The app now
-            routes every sign-in through Google OAuth.
-          </p>
+          <p className="eyebrow">Flexible access</p>
+          <h1>Sign in with Google.</h1>
+          <p>Pick your Google account, approve access, and we will create or load your session automatically.</p>
 
           <div className="feature-list">
             <div>
-              <strong>Single sign-in path</strong>
-              <span>Only Google remains on the login screen, so the flow stays simple.</span>
+              <strong>Google OAuth</strong>
+              <span>Use the Google button when a Google client id is configured.</span>
             </div>
             <div>
               <strong>Session-backed access</strong>
               <span>The backend still owns sessions, roles, and permission checks after login.</span>
             </div>
             <div>
-              <strong>First owner support</strong>
-              <span>A brand-new database can create the first owner from the first Google sign-in.</span>
+              <strong>Auto sign-up</strong>
+              <span>First-time Google sign-in creates your account automatically.</span>
             </div>
           </div>
         </div>
@@ -1020,35 +1315,48 @@ function AuthScreen({ error, googleLoginEnabled, notice, onGoogleLogin }) {
             </div>
           </div>
 
-          <p className="eyebrow">Google sign-in only</p>
+          <p className="eyebrow">Google sign-in</p>
           <h2>Use your Google account</h2>
           <p className="muted">
-            You will be redirected to Google, then brought back to the dashboard after the server
-            creates or loads your session.
+            Google will open an account picker, then the app will finish sign-in automatically.
           </p>
 
-          <button
-            className="google-btn"
-            type="button"
-            onClick={onGoogleLogin}
-            disabled={!googleLoginEnabled}
-          >
-            <span className="google-badge" aria-hidden="true">
-              G
-            </span>
-            <span>Continue with Google</span>
-          </button>
+          <div className="google-official-wrap">
+            <div ref={googleButtonContainerRef} className="google-official-btn" />
+            {!googleSignInReady ? (
+              <button
+                className="google-btn"
+                type="button"
+                onClick={onGoogleLogin}
+                disabled={busyTask === 'google' || !googleOauthEnabled}
+              >
+                <span className="google-badge" aria-hidden="true">
+                  G
+                </span>
+                <span>{busyTask === 'google' ? 'Connecting...' : 'Continue with Google'}</span>
+              </button>
+            ) : null}
+          </div>
 
-          {!googleLoginEnabled ? (
+          {!googleLoginEnabled && !googleOauthEnabled ? (
+            <p className="helper-text">Configure Google sign-in in `.env` to enable login.</p>
+          ) : googleSignInReady ? (
             <p className="helper-text">
-              Configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` in
-              `.env` to enable Google login.
+              Google sign-in is ready. After approval, the app will open the dashboard.
+            </p>
+          ) : googleOauthEnabled ? (
+            <p className="helper-text">
+              Google sign-in is loading. The fallback button uses the backend redirect flow.
             </p>
           ) : (
-            <p className="helper-text">
-              You will be redirected to Google and then returned here automatically.
-            </p>
+            <p className="helper-text">Google sign-in is not ready yet.</p>
           )}
+
+          {googleOauthEnabled ? (
+            <p className="helper-text">
+              Redirect fallback URI: http://localhost:8000/api/auth/google-callback.php
+            </p>
+          ) : null}
 
           {error ? <div className="alert error">{error}</div> : null}
           {notice ? <div className="alert success">{notice}</div> : null}

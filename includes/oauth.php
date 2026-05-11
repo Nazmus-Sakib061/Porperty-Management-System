@@ -21,6 +21,16 @@ function google_oauth_enabled(): bool
         && trim((string) google_oauth_config('redirect_uri', '')) !== '';
 }
 
+function google_identity_client_id(): string
+{
+    return trim((string) google_oauth_config('client_id', ''));
+}
+
+function google_identity_enabled(): bool
+{
+    return google_identity_client_id() !== '';
+}
+
 function google_oauth_authorize_url(string $state): string
 {
     $query = http_build_query(
@@ -85,8 +95,10 @@ function google_oauth_http_request(string $url, array $fields = [], array $heade
         throw new RuntimeException('Unable to contact Google.');
     }
 
-    global $http_response_header;
-    $statusLine = (string) ($http_response_header[0] ?? '');
+    // file_get_contents() exposes response headers through the local-scope
+    // $http_response_header variable for this request.
+    $responseHeaders = $http_response_header ?? [];
+    $statusLine = (string) ($responseHeaders[0] ?? '');
     preg_match('/\s(\d{3})\s/', $statusLine, $matches);
     $statusCode = isset($matches[1]) ? (int) $matches[1] : 0;
 
@@ -128,6 +140,34 @@ function google_oauth_fetch_userinfo(string $accessToken): array
         ],
         'GET'
     );
+}
+
+function google_oauth_fetch_id_token_profile(string $idToken): array
+{
+    $tokenInfo = google_oauth_http_request(
+        'https://oauth2.googleapis.com/tokeninfo?' . http_build_query(
+            ['id_token' => $idToken],
+            '',
+            '&',
+            PHP_QUERY_RFC3986
+        ),
+        [],
+        [],
+        'GET'
+    );
+
+    $audience = trim((string) ($tokenInfo['aud'] ?? ''));
+
+    if ($audience === '' || !hash_equals(google_identity_client_id(), $audience)) {
+        throw new RuntimeException('Google token audience does not match this app.');
+    }
+
+    return [
+        'email' => $tokenInfo['email'] ?? '',
+        'email_verified' => $tokenInfo['email_verified'] ?? false,
+        'name' => $tokenInfo['name'] ?? '',
+        'picture' => $tokenInfo['picture'] ?? '',
+    ];
 }
 
 function count_total_users(): int
@@ -232,14 +272,12 @@ function login_user_from_google_profile(array $profile): array
         return $existingUser;
     }
 
-    if (count_total_users() > 0) {
-        throw new InvalidArgumentException('No account matches this Google email address.');
-    }
+    $role = count_total_users() === 0 ? 'owner' : 'staff';
 
     $user = create_google_user_record([
         'name' => $name,
         'email' => $email,
-        'role' => 'owner',
+        'role' => $role,
         'status' => 'active',
         'must_change_password' => false,
     ]);

@@ -228,6 +228,17 @@ input {
   opacity: 0.68;
 }
 
+.google-official-wrap {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: 100%;
+}
+
+.google-official-btn {
+  min-height: 44px;
+}
+
 .google-badge {
   width: 34px;
   height: 34px;
@@ -1351,6 +1362,7 @@ input {
   padding: 16px 18px;
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.92);
+  z-index: 40;
 }
 
 .topbar-search {
@@ -1389,6 +1401,14 @@ input {
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
+  z-index: 60;
+}
+
+.profile-menu {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 80;
 }
 
 .icon-btn {
@@ -1451,6 +1471,77 @@ input {
   color: #fff;
   font-weight: 800;
   box-shadow: 0 12px 22px rgba(110, 169, 42, 0.22);
+}
+
+.profile-menu-trigger {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.profile-menu-trigger:focus-visible {
+  outline: 3px solid rgba(164, 214, 95, 0.45);
+  outline-offset: 3px;
+}
+
+.profile-menu-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 240px;
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(18px);
+  z-index: 220;
+}
+
+.profile-menu-user {
+  display: grid;
+  gap: 2px;
+  padding: 4px 4px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  margin-bottom: 10px;
+}
+
+.profile-menu-user strong {
+  font-size: 0.98rem;
+  color: #202939;
+}
+
+.profile-menu-user span {
+  font-size: 0.88rem;
+  color: #64748b;
+  word-break: break-word;
+}
+
+.profile-menu-item {
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  text-align: left;
+  font: inherit;
+  font-weight: 700;
+  color: #202939;
+  background: #f8fafc;
+  transition: transform 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.profile-menu-item:hover {
+  transform: translateY(-1px);
+  background: #eef2ff;
+}
+
+.profile-menu-item-danger {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.profile-menu-item-danger:hover {
+  background: rgba(239, 68, 68, 0.14);
 }
 
 .session-avatar img {

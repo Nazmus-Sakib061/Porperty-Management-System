@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 async function request(path, options = {}) {
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
@@ -28,6 +28,30 @@ async function request(path, options = {}) {
 
 export function getSession() {
   return request('/auth/me.php');
+}
+
+export function loginWithGoogleToken(accessToken) {
+  return request('/auth/google-login.php', {
+    method: 'POST',
+    body: JSON.stringify({ accessToken })
+  });
+}
+
+export function loginWithGoogleCode(code, state = '') {
+  return request('/auth/google-login.php', {
+    method: 'POST',
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify({ code, state })
+  });
+}
+
+export function loginWithGoogleIdToken(idToken) {
+  return request('/auth/google-login.php', {
+    method: 'POST',
+    body: JSON.stringify({ idToken })
+  });
 }
 
 export function login(email, password, csrfToken) {

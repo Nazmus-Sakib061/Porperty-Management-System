@@ -42,14 +42,16 @@ Phase 4 adds tenant management with unit mapping, photo upload, and document upl
    ```powershell
    C:\xampp\php\php.exe setup\migrate_phase4_tenants.php
    ```
-7. Configure Google OAuth in `.env`:
+7. Configure Google sign-in in `.env`:
    ```env
    GOOGLE_CLIENT_ID=your-client-id
-   GOOGLE_CLIENT_SECRET=your-client-secret
-   GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google-callback.php
-   APP_FRONTEND_URL=http://localhost:5173/
-   APP_POST_LOGIN_REDIRECT=http://localhost:5173/
+   # Optional legacy redirect flow:
+   # GOOGLE_CLIENT_SECRET=your-client-secret
+   # GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google-callback.php
+   # APP_FRONTEND_URL=http://localhost:5173/
+   # APP_POST_LOGIN_REDIRECT=http://localhost:5173/
    ```
+   The React app uses the popup/account-chooser flow, so `GOOGLE_CLIENT_ID` is enough for the button to work.
 8. Copy `frontend/.env.example` to `frontend/.env` if you want to override the API base URL.
 
 ## Run

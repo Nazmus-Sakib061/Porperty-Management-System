@@ -2,6 +2,38 @@
 
 declare(strict_types=1);
 
+function load_env_file(string $path): void
+{
+    if (!is_file($path) || !is_readable($path)) {
+        return;
+    }
+
+    $values = parse_ini_file($path, false, INI_SCANNER_RAW);
+
+    if ($values === false) {
+        return;
+    }
+
+    foreach ($values as $key => $value) {
+        $key = trim((string) $key);
+
+        if ($key === '') {
+            continue;
+        }
+
+        if (getenv($key) !== false) {
+            continue;
+        }
+
+        $stringValue = is_array($value) ? '' : (string) $value;
+        putenv($key . '=' . $stringValue);
+        $_ENV[$key] = $stringValue;
+        $_SERVER[$key] = $stringValue;
+    }
+}
+
+load_env_file(__DIR__ . '/../.env');
+
 $GLOBALS['config'] = [
     'app' => require __DIR__ . '/../config/app.php',
     'database' => require __DIR__ . '/../config/database.php',
