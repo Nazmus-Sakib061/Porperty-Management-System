@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../bootstrap.php';
 
 api_method(['POST']);
-api_require_role(['owner', 'manager']);
+$currentUser = api_require_role(['owner', 'manager', 'staff']);
 
 $data = api_input();
 $csrfToken = (string) ($data['csrfToken'] ?? '');
@@ -27,7 +27,7 @@ if ($propertyId <= 0) {
 }
 
 try {
-    delete_property_record($propertyId);
+    delete_property_record($propertyId, (int) ($currentUser['id'] ?? 0));
 } catch (InvalidArgumentException $exception) {
     api_response([
         'ok' => false,
@@ -42,8 +42,7 @@ try {
 
 api_response([
     'ok' => true,
-    'message' => 'Property deleted successfully.',
+    'message' => 'Property archived successfully.',
     'csrfToken' => csrf_token(),
     'deletedId' => $propertyId,
 ]);
-

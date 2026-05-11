@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../bootstrap.php';
 
 api_method(['POST']);
-$currentUser = api_require_role(['owner', 'manager', 'staff']);
+api_require_role(['owner', 'manager']);
 
 $data = api_input();
 $csrfToken = (string) ($data['csrfToken'] ?? '');
@@ -17,8 +17,17 @@ if (!verify_csrf_token($csrfToken)) {
     ], 419);
 }
 
+$leaseId = (int) ($data['id'] ?? $data['leaseId'] ?? $data['lease_id'] ?? 0);
+
+if ($leaseId <= 0) {
+    api_response([
+        'ok' => false,
+        'message' => 'Please choose a lease.',
+    ], 422);
+}
+
 try {
-    $property = create_property_record($data, (int) ($currentUser['id'] ?? 0));
+    $lease = update_lease_record($leaseId, $data);
 } catch (InvalidArgumentException $exception) {
     api_response([
         'ok' => false,
@@ -27,13 +36,13 @@ try {
 } catch (Throwable $exception) {
     api_response([
         'ok' => false,
-        'message' => 'The property could not be created.',
+        'message' => 'The lease could not be updated.',
     ], 500);
 }
 
 api_response([
     'ok' => true,
-    'message' => 'Property created successfully.',
+    'message' => 'Lease updated successfully.',
     'csrfToken' => csrf_token(),
-    'property' => build_property_payload($property),
+    'lease' => build_lease_payload($lease),
 ]);

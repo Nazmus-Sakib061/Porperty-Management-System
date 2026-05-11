@@ -138,9 +138,19 @@ function validate_property_description(?string $value): ?string
     return validate_optional_property_text($value, 5000);
 }
 
+function validate_property_area(?string $value): ?string
+{
+    return validate_optional_property_text($value, 100);
+}
+
 function validate_property_notes(?string $value): ?string
 {
     return validate_optional_property_text($value, 5000);
+}
+
+function validate_property_image_reference(?string $value): ?string
+{
+    return validate_optional_property_text($value, 255);
 }
 
 function validate_property_type_description(?string $value): ?string
@@ -273,7 +283,8 @@ function property_type_property_count(int $typeId): int
     $statement = db()->prepare(
         'SELECT COUNT(*) AS total
          FROM properties
-         WHERE property_type_id = :property_type_id'
+         WHERE property_type_id = :property_type_id
+           AND deleted_at IS NULL'
     );
     $statement->execute(['property_type_id' => $typeId]);
     $row = $statement->fetch() ?: [];
@@ -377,17 +388,27 @@ function property_base_columns(): string
         'p.slug',
         'p.status',
         'p.description',
+        'p.area',
         'p.address_line1',
         'p.address_line2',
         'p.city',
         'p.state',
         'p.postal_code',
         'p.country',
+        'p.thika_no',
+        'p.deed_no',
+        'p.land_tax',
+        'p.total_floors',
+        'p.total_units',
+        'p.garage_count',
         'p.bedrooms',
         'p.bathrooms',
         'p.area_sqft',
+        'p.rent_min',
+        'p.rent_max',
         'p.monthly_rent',
         'p.security_deposit',
+        'p.image',
         'p.notes',
         'p.created_by',
         'p.created_at',
@@ -484,9 +505,24 @@ function build_property_payload(array $record): array
     ]);
 
     $specParts = [];
+    $totalFloors = (int) ($record['total_floors'] ?? 0);
+    $totalUnits = (int) ($record['total_units'] ?? 0);
     $bedrooms = (int) ($record['bedrooms'] ?? 0);
     $bathrooms = (float) ($record['bathrooms'] ?? 0);
     $areaSqft = $record['area_sqft'] !== null ? (int) $record['area_sqft'] : null;
+    $rentMin = (float) ($record['rent_min'] ?? 0);
+    $rentMax = (float) ($record['rent_max'] ?? 0);
+    $landTax = (float) ($record['land_tax'] ?? 0);
+    $cachedImage = sanitize_relative_property_image_path($record['image'] ?? null);
+    $cachedImageUrl = $cachedImage !== null ? property_image_url($cachedImage) : null;
+
+    if ($totalFloors > 0) {
+        $specParts[] = $totalFloors . ' floors';
+    }
+
+    if ($totalUnits > 0) {
+        $specParts[] = $totalUnits . ' units';
+    }
 
     if ($bedrooms > 0) {
         $specParts[] = $bedrooms . ' bed';
@@ -506,26 +542,54 @@ function build_property_payload(array $record): array
         'propertyTypeId' => $propertyTypeId,
         'propertyType' => $propertyType,
         'name' => (string) ($record['name'] ?? ''),
+        'property_name' => (string) ($record['name'] ?? ''),
+        'propertyName' => (string) ($record['name'] ?? ''),
         'slug' => (string) ($record['slug'] ?? ''),
         'status' => normalize_property_status((string) ($record['status'] ?? 'available')),
         'statusLabel' => property_status_label((string) ($record['status'] ?? 'available')),
         'description' => $record['description'] !== null ? (string) $record['description'] : null,
+        'area' => $record['area'] !== null ? (string) $record['area'] : null,
         'addressLine1' => (string) ($record['address_line1'] ?? ''),
         'addressLine2' => $record['address_line2'] !== null ? (string) $record['address_line2'] : null,
         'city' => (string) ($record['city'] ?? ''),
         'state' => (string) ($record['state'] ?? ''),
         'postalCode' => (string) ($record['postal_code'] ?? ''),
         'country' => (string) ($record['country'] ?? ''),
+        'thikaNo' => $record['thika_no'] !== null ? (string) $record['thika_no'] : null,
+        'thika_no' => $record['thika_no'] !== null ? (string) $record['thika_no'] : null,
+        'deedNo' => $record['deed_no'] !== null ? (string) $record['deed_no'] : null,
+        'deed_no' => $record['deed_no'] !== null ? (string) $record['deed_no'] : null,
+        'landTax' => $landTax,
+        'land_tax' => $landTax,
         'addressLabel' => implode(', ', $addressParts),
+        'address' => implode(', ', $addressParts),
+        'property_type' => (string) ($record['property_type_name'] ?? ''),
+        'property_type_name' => (string) ($record['property_type_name'] ?? ''),
+        'totalFloors' => $totalFloors,
+        'total_floors' => $totalFloors,
+        'totalUnits' => $totalUnits,
+        'total_units' => $totalUnits,
+        'garageCount' => (int) ($record['garage_count'] ?? 0),
+        'garage_count' => (int) ($record['garage_count'] ?? 0),
         'bedrooms' => $bedrooms,
         'bathrooms' => $bathrooms,
         'areaSqft' => $areaSqft,
+        'area_sqft' => $areaSqft,
+        'rentMin' => $rentMin,
+        'rent_min' => $rentMin,
+        'rentMax' => $rentMax,
+        'rent_max' => $rentMax,
         'monthlyRent' => (float) ($record['monthly_rent'] ?? 0),
+        'monthly_rent' => (float) ($record['monthly_rent'] ?? 0),
         'securityDeposit' => (float) ($record['security_deposit'] ?? 0),
+        'security_deposit' => (float) ($record['security_deposit'] ?? 0),
+        'image' => $record['image'] !== null ? (string) $record['image'] : null,
+        'propertyTypeLabel' => (string) ($record['property_type_name'] ?? ''),
         'notes' => $record['notes'] !== null ? (string) $record['notes'] : null,
         'specSummary' => implode(' • ', $specParts),
         'coverImagePath' => $coverImagePath,
         'coverImageUrl' => $coverImageUrl,
+        'imageUrl' => $coverImageUrl ?? $cachedImageUrl ?? ($record['image'] !== null ? (string) $record['image'] : null),
         'coverImageCaption' => $record['cover_image_caption'] !== null ? (string) $record['cover_image_caption'] : null,
         'imageCount' => (int) ($record['image_count'] ?? count($images)),
         'images' => $images,
@@ -579,6 +643,7 @@ function load_property_record_by_id(int $id): ?array
          INNER JOIN property_types pt ON pt.id = p.property_type_id
          LEFT JOIN users u ON u.id = p.created_by
          WHERE p.id = :id
+           AND p.deleted_at IS NULL
          LIMIT 1'
     );
     $statement->execute(['id' => $id]);
@@ -637,7 +702,7 @@ function list_property_type_records(): array
             COALESCE(SUM(CASE WHEN p.status = "maintenance" THEN 1 ELSE 0 END), 0) AS maintenance_count,
             COALESCE(SUM(CASE WHEN p.status = "inactive" THEN 1 ELSE 0 END), 0) AS inactive_property_count
          FROM property_types pt
-         LEFT JOIN properties p ON p.property_type_id = pt.id
+         LEFT JOIN properties p ON p.property_type_id = pt.id AND p.deleted_at IS NULL
          GROUP BY
             pt.id,
             pt.name,
@@ -663,7 +728,7 @@ function list_property_records(int $limit = 50, int $offset = 0, ?string $search
     $status = $status !== null && $status !== '' && strtolower($status) !== 'all' ? normalize_property_status($status) : null;
     $propertyTypeId = $propertyTypeId !== null && $propertyTypeId > 0 ? $propertyTypeId : null;
 
-    $where = ['1 = 1'];
+    $where = ['p.deleted_at IS NULL'];
     $params = [];
 
     if ($search !== null && $search !== '') {
@@ -723,7 +788,8 @@ function property_summary_stats(): array
             COALESCE(SUM(CASE WHEN status = "maintenance" THEN 1 ELSE 0 END), 0) AS maintenance_properties,
             COALESCE(SUM(CASE WHEN status = "inactive" THEN 1 ELSE 0 END), 0) AS inactive_properties,
             COALESCE(SUM(CASE WHEN area_sqft IS NOT NULL THEN 1 ELSE 0 END), 0) AS has_area_properties
-         FROM properties'
+         FROM properties
+         WHERE deleted_at IS NULL'
     )->fetch() ?: [];
 
     $typeRow = db()->query(
@@ -792,6 +858,7 @@ function normalize_property_payload(array $data, ?int $ignoreId = null): array
     $name = validate_property_name((string) ($data['name'] ?? ''));
     $status = normalize_property_status((string) ($data['status'] ?? 'available'));
     $description = validate_property_description($data['description'] ?? null);
+    $area = validate_property_area($data['area'] ?? null);
     $addressLine1 = validate_property_line((string) ($data['addressLine1'] ?? $data['address_line1'] ?? ''), 'address line 1');
     $addressLine2 = validate_optional_property_text($data['addressLine2'] ?? $data['address_line2'] ?? null, 191);
     $city = validate_property_city((string) ($data['city'] ?? ''));
@@ -799,11 +866,20 @@ function normalize_property_payload(array $data, ?int $ignoreId = null): array
     $postalCode = validate_property_postal_code((string) ($data['postalCode'] ?? $data['postal_code'] ?? ''));
     $countryInput = trim((string) ($data['country'] ?? ''));
     $country = $countryInput === '' ? property_default_country() : validate_property_country($countryInput);
+    $thikaNo = validate_optional_property_text($data['thikaNo'] ?? $data['thika_no'] ?? null, 80);
+    $deedNo = validate_optional_property_text($data['deedNo'] ?? $data['deed_no'] ?? null, 120);
+    $landTax = validate_property_decimal($data['landTax'] ?? $data['land_tax'] ?? 0, 'land tax', 2, 0, 999999999.99, '0.00');
+    $totalFloors = validate_property_integer($data['totalFloors'] ?? $data['total_floors'] ?? 0, 'total floors', 0, 999, 0) ?? 0;
+    $totalUnits = validate_property_integer($data['totalUnits'] ?? $data['total_units'] ?? 0, 'total units', 0, 99999, 0) ?? 0;
+    $garageCount = validate_property_integer($data['garageCount'] ?? $data['garage_count'] ?? 0, 'garage count', 0, 99999, 0) ?? 0;
     $bedrooms = validate_property_integer($data['bedrooms'] ?? 0, 'bedrooms', 0, 999, 0) ?? 0;
     $bathrooms = validate_property_decimal($data['bathrooms'] ?? 0, 'bathrooms', 1, 0, 999, '0.0');
     $areaSqft = validate_property_integer($data['areaSqft'] ?? $data['area_sqft'] ?? null, 'area', 0, 1000000, null);
-    $monthlyRent = validate_property_decimal($data['monthlyRent'] ?? $data['monthly_rent'] ?? 0, 'monthly rent', 2, 0, 999999999.99, '0.00');
+    $rentMin = validate_property_decimal($data['rentMin'] ?? $data['rent_min'] ?? $data['monthlyRent'] ?? $data['monthly_rent'] ?? 0, 'rent minimum', 2, 0, 999999999.99, '0.00');
+    $rentMax = validate_property_decimal($data['rentMax'] ?? $data['rent_max'] ?? $data['monthlyRent'] ?? $data['monthly_rent'] ?? 0, 'rent maximum', 2, 0, 999999999.99, '0.00');
+    $monthlyRent = $rentMax;
     $securityDeposit = validate_property_decimal($data['securityDeposit'] ?? $data['security_deposit'] ?? 0, 'security deposit', 2, 0, 999999999.99, '0.00');
+    $image = validate_property_image_reference($data['image'] ?? $data['imageUrl'] ?? $data['coverImageUrl'] ?? null);
     $notes = validate_property_notes($data['notes'] ?? null);
     $slug = unique_property_slug($name, $city, $ignoreId);
 
@@ -813,17 +889,27 @@ function normalize_property_payload(array $data, ?int $ignoreId = null): array
         'slug' => $slug,
         'status' => $status,
         'description' => $description,
+        'area' => $area,
         'address_line1' => $addressLine1,
         'address_line2' => $addressLine2,
         'city' => $city,
         'state' => $state,
         'postal_code' => $postalCode,
         'country' => $country,
+        'thika_no' => $thikaNo,
+        'deed_no' => $deedNo,
+        'land_tax' => $landTax,
+        'total_floors' => $totalFloors,
+        'total_units' => $totalUnits,
+        'garage_count' => $garageCount,
         'bedrooms' => $bedrooms,
         'bathrooms' => $bathrooms,
         'area_sqft' => $areaSqft,
+        'rent_min' => $rentMin,
+        'rent_max' => $rentMax,
         'monthly_rent' => $monthlyRent,
         'security_deposit' => $securityDeposit,
+        'image' => $image,
         'notes' => $notes,
     ];
 }
@@ -903,9 +989,54 @@ function delete_property_type_record(int $id): void
     $statement->execute(['id' => $id]);
 }
 
+function bootstrap_property_units(array $propertyRecord, ?int $creatorId = null): void
+{
+    $propertyId = (int) ($propertyRecord['id'] ?? 0);
+    $totalUnits = max(0, (int) ($propertyRecord['total_units'] ?? 0));
+    $propertyName = trim((string) ($propertyRecord['name'] ?? 'Property'));
+    $propertyTypeName = strtolower(trim((string) ($propertyRecord['property_type_name'] ?? '')));
+    $prefix = str_contains($propertyTypeName, 'shop') || str_contains($propertyTypeName, 'market') ? 'Shop' : 'Flat';
+    $rent = (string) ($propertyRecord['monthly_rent'] ?? $propertyRecord['rent_max'] ?? $propertyRecord['rent_min'] ?? '0.00');
+    $deposit = (string) ($propertyRecord['security_deposit'] ?? '0.00');
+
+    if ($propertyId <= 0 || $totalUnits <= 0) {
+        return;
+    }
+
+    $statement = db()->prepare('SELECT COUNT(*) AS total FROM units WHERE property_id = :property_id');
+    $statement->execute(['property_id' => $propertyId]);
+    $existingCount = (int) (($statement->fetch() ?: [])['total'] ?? 0);
+
+    if ($existingCount >= $totalUnits) {
+        return;
+    }
+
+    for ($index = $existingCount + 1; $index <= $totalUnits; $index++) {
+        $unitNumber = sprintf('%s %02d', $prefix, $index);
+
+        if (unit_number_exists($propertyId, $unitNumber)) {
+            continue;
+        }
+
+        $unitData = [
+            'propertyId' => $propertyId,
+            'unitNumber' => $unitNumber,
+            'status' => 'available',
+            'description' => $propertyName . ' - ' . $unitNumber,
+            'monthlyRent' => $rent,
+            'securityDeposit' => $deposit,
+            'notes' => 'Auto-generated placeholder unit',
+        ];
+
+        create_unit_record($unitData, $creatorId);
+    }
+}
+
 function create_property_record(array $data, ?int $creatorId = null): array
 {
     $payload = normalize_property_payload($data);
+    $bootstrapUnits = filter_var($data['bootstrapUnits'] ?? $data['bootstrap_units'] ?? true, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+    $bootstrapUnits = $bootstrapUnits ?? true;
 
     $statement = db()->prepare(
         'INSERT INTO properties (
@@ -914,17 +1045,27 @@ function create_property_record(array $data, ?int $creatorId = null): array
             slug,
             status,
             description,
+            area,
             address_line1,
             address_line2,
             city,
             state,
             postal_code,
             country,
+            thika_no,
+            deed_no,
+            land_tax,
+            total_floors,
+            total_units,
+            garage_count,
             bedrooms,
             bathrooms,
             area_sqft,
+            rent_min,
+            rent_max,
             monthly_rent,
             security_deposit,
+            image,
             notes,
             created_by
         ) VALUES (
@@ -933,17 +1074,27 @@ function create_property_record(array $data, ?int $creatorId = null): array
             :slug,
             :status,
             :description,
+            :area,
             :address_line1,
             :address_line2,
             :city,
             :state,
             :postal_code,
             :country,
+            :thika_no,
+            :deed_no,
+            :land_tax,
+            :total_floors,
+            :total_units,
+            :garage_count,
             :bedrooms,
             :bathrooms,
             :area_sqft,
+            :rent_min,
+            :rent_max,
             :monthly_rent,
             :security_deposit,
+            :image,
             :notes,
             :created_by
         )'
@@ -954,17 +1105,27 @@ function create_property_record(array $data, ?int $creatorId = null): array
         'slug' => $payload['slug'],
         'status' => $payload['status'],
         'description' => $payload['description'],
+        'area' => $payload['area'],
         'address_line1' => $payload['address_line1'],
         'address_line2' => $payload['address_line2'],
         'city' => $payload['city'],
         'state' => $payload['state'],
         'postal_code' => $payload['postal_code'],
         'country' => $payload['country'],
+        'thika_no' => $payload['thika_no'],
+        'deed_no' => $payload['deed_no'],
+        'land_tax' => $payload['land_tax'],
+        'total_floors' => $payload['total_floors'],
+        'total_units' => $payload['total_units'],
+        'garage_count' => $payload['garage_count'],
         'bedrooms' => $payload['bedrooms'],
         'bathrooms' => $payload['bathrooms'],
         'area_sqft' => $payload['area_sqft'],
+        'rent_min' => $payload['rent_min'],
+        'rent_max' => $payload['rent_max'],
         'monthly_rent' => $payload['monthly_rent'],
         'security_deposit' => $payload['security_deposit'],
+        'image' => $payload['image'],
         'notes' => $payload['notes'],
         'created_by' => $creatorId,
     ]);
@@ -973,6 +1134,11 @@ function create_property_record(array $data, ?int $creatorId = null): array
 
     if ($record === null) {
         throw new RuntimeException('The property could not be created.');
+    }
+
+    if ($bootstrapUnits && $payload['total_units'] > 0) {
+        bootstrap_property_units($record, $creatorId);
+        $record = load_property_record_by_id((int) $record['id']) ?? $record;
     }
 
     return $record;
@@ -993,17 +1159,27 @@ function update_property_record(int $id, array $data): array
              slug = :slug,
              status = :status,
              description = :description,
+             area = :area,
              address_line1 = :address_line1,
              address_line2 = :address_line2,
              city = :city,
              state = :state,
-             postal_code = :postal_code,
-             country = :country,
-             bedrooms = :bedrooms,
+            postal_code = :postal_code,
+            country = :country,
+            thika_no = :thika_no,
+            deed_no = :deed_no,
+            land_tax = :land_tax,
+            total_floors = :total_floors,
+            total_units = :total_units,
+            garage_count = :garage_count,
+            bedrooms = :bedrooms,
              bathrooms = :bathrooms,
              area_sqft = :area_sqft,
+             rent_min = :rent_min,
+             rent_max = :rent_max,
              monthly_rent = :monthly_rent,
              security_deposit = :security_deposit,
+             image = :image,
              notes = :notes
          WHERE id = :id'
     );
@@ -1014,17 +1190,27 @@ function update_property_record(int $id, array $data): array
         'slug' => $payload['slug'],
         'status' => $payload['status'],
         'description' => $payload['description'],
+        'area' => $payload['area'],
         'address_line1' => $payload['address_line1'],
         'address_line2' => $payload['address_line2'],
         'city' => $payload['city'],
         'state' => $payload['state'],
         'postal_code' => $payload['postal_code'],
         'country' => $payload['country'],
+        'thika_no' => $payload['thika_no'],
+        'deed_no' => $payload['deed_no'],
+        'land_tax' => $payload['land_tax'],
+        'total_floors' => $payload['total_floors'],
+        'total_units' => $payload['total_units'],
+        'garage_count' => $payload['garage_count'],
         'bedrooms' => $payload['bedrooms'],
         'bathrooms' => $payload['bathrooms'],
         'area_sqft' => $payload['area_sqft'],
+        'rent_min' => $payload['rent_min'],
+        'rent_max' => $payload['rent_max'],
         'monthly_rent' => $payload['monthly_rent'],
         'security_deposit' => $payload['security_deposit'],
+        'image' => $payload['image'],
         'notes' => $payload['notes'],
     ]);
 
@@ -1037,7 +1223,7 @@ function update_property_record(int $id, array $data): array
     return $record;
 }
 
-function delete_property_record(int $id): void
+function delete_property_record(int $id, ?int $deletedBy = null): void
 {
     $property = load_property_record_by_id($id);
 
@@ -1045,14 +1231,17 @@ function delete_property_record(int $id): void
         throw new InvalidArgumentException('The selected property does not exist.');
     }
 
-    $imagePaths = array_column($property['images'], 'imagePath');
-
-    $statement = db()->prepare('DELETE FROM properties WHERE id = :id');
-    $statement->execute(['id' => $id]);
-
-    foreach ($imagePaths as $path) {
-        delete_property_image_file($path);
-    }
+    $statement = db()->prepare(
+        'UPDATE properties
+         SET deleted_at = CURRENT_TIMESTAMP,
+             deleted_by = :deleted_by,
+             status = CASE WHEN status = "available" THEN "inactive" ELSE status END
+         WHERE id = :id'
+    );
+    $statement->execute([
+        'id' => $id,
+        'deleted_by' => $deletedBy,
+    ]);
 }
 
 function store_property_image_upload(int $propertyId, array $file): array
@@ -1281,4 +1470,3 @@ function load_next_primary_property_image(int $propertyId): ?array
 
     return $record === false ? null : $record;
 }
-

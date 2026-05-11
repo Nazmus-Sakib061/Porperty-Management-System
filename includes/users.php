@@ -303,11 +303,11 @@ function user_permissions_from_role(?string $role): array
         'canChangeOwnPassword' => true,
         'canEditAnyUser' => $role === 'owner',
         'canViewProperties' => in_array($role, ['owner', 'manager', 'staff'], true),
-        'canManageProperties' => in_array($role, ['owner', 'manager'], true),
-        'canManageUnits' => in_array($role, ['owner', 'manager'], true),
-        'canManageTenants' => in_array($role, ['owner', 'manager'], true),
+        'canManageProperties' => in_array($role, ['owner', 'manager', 'staff'], true),
+        'canManageUnits' => in_array($role, ['owner', 'manager', 'staff'], true),
+        'canManageTenants' => in_array($role, ['owner', 'manager', 'staff'], true),
         'canManagePropertyTypes' => $role === 'owner',
-        'canUploadPropertyImages' => in_array($role, ['owner', 'manager'], true),
+        'canUploadPropertyImages' => in_array($role, ['owner', 'manager', 'staff'], true),
     ];
 }
 

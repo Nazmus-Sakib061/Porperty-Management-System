@@ -44,27 +44,40 @@ CREATE TABLE IF NOT EXISTS properties (
     slug VARCHAR(180) NOT NULL,
     status ENUM('available', 'occupied', 'maintenance', 'inactive') NOT NULL DEFAULT 'available',
     description TEXT NULL,
+    area VARCHAR(100) NULL,
     address_line1 VARCHAR(191) NOT NULL,
     address_line2 VARCHAR(191) NULL,
     city VARCHAR(120) NOT NULL,
     state VARCHAR(120) NOT NULL,
     postal_code VARCHAR(32) NOT NULL,
     country VARCHAR(120) NOT NULL DEFAULT 'Bangladesh',
+    thika_no VARCHAR(80) NULL,
+    deed_no VARCHAR(120) NULL,
+    land_tax DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    total_floors INT UNSIGNED NOT NULL DEFAULT 0,
+    total_units INT UNSIGNED NOT NULL DEFAULT 0,
+    garage_count INT UNSIGNED NOT NULL DEFAULT 0,
     bedrooms SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     bathrooms DECIMAL(3,1) NOT NULL DEFAULT 0.0,
     area_sqft INT UNSIGNED NULL,
+    rent_min DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    rent_max DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     monthly_rent DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     security_deposit DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    image VARCHAR(255) NULL,
     notes TEXT NULL,
     created_by BIGINT UNSIGNED NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL DEFAULT NULL,
+    deleted_by BIGINT UNSIGNED NULL,
     PRIMARY KEY (id),
     UNIQUE KEY properties_slug_unique (slug),
     KEY properties_type_index (property_type_id),
     KEY properties_status_index (status),
     KEY properties_city_index (city),
     KEY properties_updated_at_index (updated_at),
+    KEY properties_deleted_at_index (deleted_at),
     CONSTRAINT properties_type_fk
         FOREIGN KEY (property_type_id) REFERENCES property_types (id)
         ON UPDATE CASCADE
@@ -159,6 +172,43 @@ CREATE TABLE IF NOT EXISTS tenants (
         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS tenant_leases (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT UNSIGNED NOT NULL,
+    unit_id BIGINT UNSIGNED NOT NULL,
+    lease_start_date DATE NOT NULL,
+    lease_end_date DATE NOT NULL,
+    notice_date DATE NULL,
+    move_out_date DATE NULL,
+    rent_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    security_deposit DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    service_charge DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    electricity_meter_no VARCHAR(80) NULL,
+    gas_meter_no VARCHAR(80) NULL,
+    status ENUM('draft', 'active', 'expiring', 'ended', 'notice') NOT NULL DEFAULT 'draft',
+    notes TEXT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY tenant_leases_tenant_index (tenant_id),
+    KEY tenant_leases_unit_index (unit_id),
+    KEY tenant_leases_status_index (status),
+    KEY tenant_leases_end_date_index (lease_end_date),
+    CONSTRAINT tenant_leases_tenant_fk
+        FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_leases_unit_fk
+        FOREIGN KEY (unit_id) REFERENCES units (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_leases_created_by_fk
+        FOREIGN KEY (created_by) REFERENCES users (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS tenant_documents (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     tenant_id BIGINT UNSIGNED NOT NULL,
@@ -175,4 +225,145 @@ CREATE TABLE IF NOT EXISTS tenant_documents (
         FOREIGN KEY (tenant_id) REFERENCES tenants (id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS lease_documents (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    lease_id BIGINT UNSIGNED NOT NULL,
+    document_path VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    caption VARCHAR(191) NULL,
+    mime_type VARCHAR(191) NOT NULL,
+    file_size BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY lease_documents_lease_index (lease_id, created_at),
+    CONSTRAINT lease_documents_lease_fk
+        FOREIGN KEY (lease_id) REFERENCES tenant_leases (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tenant_utilities (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    lease_id BIGINT UNSIGNED NOT NULL,
+    utility_type ENUM('electricity', 'gas', 'water', 'internet', 'service_charge', 'other') NOT NULL DEFAULT 'electricity',
+    meter_no VARCHAR(80) NULL,
+    opening_reading DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    closing_reading DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    rate_per_unit DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    bill_month DATE NOT NULL,
+    amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    status ENUM('open', 'submitted', 'paid', 'waived') NOT NULL DEFAULT 'open',
+    notes TEXT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY tenant_utilities_lease_index (lease_id),
+    KEY tenant_utilities_month_index (bill_month),
+    KEY tenant_utilities_status_index (status),
+    CONSTRAINT tenant_utilities_lease_fk
+        FOREIGN KEY (lease_id) REFERENCES tenant_leases (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_utilities_created_by_fk
+        FOREIGN KEY (created_by) REFERENCES users (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tenant_bills (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    lease_id BIGINT UNSIGNED NOT NULL,
+    bill_month DATE NOT NULL,
+    base_rent DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    service_charge DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    utility_total DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    late_fee DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    adjustment DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    total_due DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    arrears_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    status ENUM('draft', 'issued', 'partially_paid', 'paid', 'overdue', 'waived') NOT NULL DEFAULT 'draft',
+    due_date DATE NULL,
+    paid_at TIMESTAMP NULL DEFAULT NULL,
+    notes TEXT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY tenant_bills_lease_index (lease_id),
+    KEY tenant_bills_month_index (bill_month),
+    KEY tenant_bills_status_index (status),
+    KEY tenant_bills_due_date_index (due_date),
+    CONSTRAINT tenant_bills_lease_fk
+        FOREIGN KEY (lease_id) REFERENCES tenant_leases (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_bills_created_by_fk
+        FOREIGN KEY (created_by) REFERENCES users (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tenant_arrears (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    bill_id BIGINT UNSIGNED NOT NULL,
+    lease_id BIGINT UNSIGNED NOT NULL,
+    amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    status ENUM('open', 'notified', 'resolved', 'written_off') NOT NULL DEFAULT 'open',
+    notice_date DATE NULL,
+    resolved_at TIMESTAMP NULL DEFAULT NULL,
+    notes TEXT NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY tenant_arrears_bill_index (bill_id),
+    KEY tenant_arrears_lease_index (lease_id),
+    KEY tenant_arrears_status_index (status),
+    CONSTRAINT tenant_arrears_bill_fk
+        FOREIGN KEY (bill_id) REFERENCES tenant_bills (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_arrears_lease_fk
+        FOREIGN KEY (lease_id) REFERENCES tenant_leases (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_arrears_created_by_fk
+        FOREIGN KEY (created_by) REFERENCES users (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS tenant_notices (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    tenant_id BIGINT UNSIGNED NOT NULL,
+    lease_id BIGINT UNSIGNED NULL,
+    notice_type ENUM('move_out', 'payment_due', 'arrears', 'general') NOT NULL DEFAULT 'general',
+    notice_text TEXT NOT NULL,
+    notice_date DATE NOT NULL,
+    due_date DATE NULL,
+    status ENUM('draft', 'sent', 'acknowledged', 'closed') NOT NULL DEFAULT 'draft',
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY tenant_notices_tenant_index (tenant_id),
+    KEY tenant_notices_lease_index (lease_id),
+    KEY tenant_notices_status_index (status),
+    CONSTRAINT tenant_notices_tenant_fk
+        FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT tenant_notices_lease_fk
+        FOREIGN KEY (lease_id) REFERENCES tenant_leases (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL,
+    CONSTRAINT tenant_notices_created_by_fk
+        FOREIGN KEY (created_by) REFERENCES users (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -192,6 +192,54 @@ export function deleteTenantDocument(payload) {
   });
 }
 
+export function getLeases(params = {}) {
+  const searchParams = new URLSearchParams();
+  const propertyId = params.propertyId ?? '';
+  const limit = params.limit ?? 50;
+  const offset = params.offset ?? 0;
+
+  if (propertyId) {
+    searchParams.set('propertyId', String(propertyId));
+  }
+
+  if (limit !== undefined && limit !== null) {
+    searchParams.set('limit', String(limit));
+  }
+
+  if (offset !== undefined && offset !== null) {
+    searchParams.set('offset', String(offset));
+  }
+
+  const queryString = searchParams.toString();
+  return request(`/leases/list.php${queryString ? `?${queryString}` : ''}`);
+}
+
+export function getLease(id) {
+  const query = id ? `?id=${encodeURIComponent(id)}` : '';
+  return request(`/leases/view.php${query}`);
+}
+
+export function createLease(payload) {
+  return request('/leases/create.php', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateLease(payload) {
+  return request('/leases/update.php', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteLease(payload) {
+  return request('/leases/delete.php', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
 export function getProperties(params = {}) {
   const searchParams = new URLSearchParams();
   const query = params.query ?? '';

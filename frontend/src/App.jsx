@@ -15,6 +15,7 @@ import {
   uploadPhoto
 } from './api';
 import PropertiesScreen from './PropertiesScreen';
+import OperationsScreen from './OperationsScreen';
 import UnitsScreen from './UnitsScreen';
 import TenantsScreen from './TenantsScreen';
 
@@ -271,6 +272,12 @@ function UIIcon({ name }) {
           <path d="M9 18a3 3 0 0 0 6 0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       );
+    case 'menu':
+      return (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4.5 6.75H19.5M4.5 12H19.5M4.5 17.25H14.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      );
     case 'more':
       return (
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -407,6 +414,8 @@ function App() {
         ? 'Dashboard'
         : screen === 'properties'
           ? 'Property'
+          : screen === 'operations'
+            ? 'Operations'
           : screen === 'units'
             ? 'Listing'
             : screen === 'tenants'
@@ -419,6 +428,7 @@ function App() {
   const navItems = useMemo(() => {
     const items = [{ key: 'dashboard', label: 'Dashboard', icon: 'dashboard' }];
     items.push({ key: 'properties', label: 'Property', icon: 'property' });
+    items.push({ key: 'operations', label: 'Operations', icon: 'reports' });
     if (canViewTenants) {
       items.push({ key: 'tenants', label: 'Clients', icon: 'clients' });
     }
@@ -1092,29 +1102,40 @@ function App() {
         </nav>
 
         <div className="sidebar-meta">
-          <small>Signed in as</small>
-          <strong>{session.name}</strong>
-          <span>{session.email}</span>
-          <span>{roleLabel}</span>
-          <button className="secondary-btn" type="button" onClick={handleLogout} disabled={busyTask !== ''}>
-            {busyTask === 'logout' ? 'Signing out...' : 'Logout'}
-          </button>
+          <div className="sidebar-promo-card">
+            <div className="sidebar-promo-illustration">
+              <AllegroMark />
+            </div>
+            <strong>Grow your property business</strong>
+            <span>Manage properties, tenants and finances in one place.</span>
+            <button className="secondary-btn sidebar-promo-btn" type="button">
+              Upgrade Plan
+            </button>
+          </div>
+          <div className="sidebar-help-card">
+            <strong>Need help?</strong>
+            <span>Contact support</span>
+          </div>
         </div>
       </aside>
 
       <main className="workspace">
         <header className="topbar glass">
+          <button className="icon-btn topbar-menu-btn" type="button" aria-label="Open navigation">
+            <UIIcon name="menu" />
+          </button>
           <form className="topbar-search" onSubmit={(event) => event.preventDefault()}>
             <span className="topbar-search-icon" aria-hidden="true">
               <UIIcon name="search" />
             </span>
             <input
               aria-label="Search dashboard"
-              placeholder="Search..."
+              placeholder="Search properties, tenants, or anything..."
               value={dashboardSearch}
               onChange={(event) => setDashboardSearch(event.target.value)}
               type="search"
             />
+            <span className="topbar-search-shortcut">Ctrl + K</span>
           </form>
 
           <div className="topbar-actions">
@@ -1124,14 +1145,20 @@ function App() {
             </button>
             <div className="profile-menu" ref={profileMenuRef}>
               <button
-                className="session-avatar session-avatar-inline profile-menu-trigger"
+                className="profile-menu-trigger profile-menu-card"
                 type="button"
                 aria-label="Account menu"
                 aria-expanded={profileMenuOpen}
                 aria-haspopup="menu"
                 onClick={() => setProfileMenuOpen((current) => !current)}
               >
-                {userPhoto ? <img src={userPhoto} alt="" /> : <span>{initials(session.name)}</span>}
+                <span className="session-avatar session-avatar-inline">
+                  {userPhoto ? <img src={userPhoto} alt="" /> : <span>{initials(session.name)}</span>}
+                </span>
+                <span className="profile-menu-card-copy">
+                  <strong>{session.name}</strong>
+                  <small>{roleLabel}</small>
+                </span>
               </button>
               {profileMenuOpen ? (
                 <div className="profile-menu-popover" role="menu" aria-label="Account actions">
@@ -1191,6 +1218,11 @@ function App() {
           <PropertiesScreen
             csrfToken={csrfToken}
             setCsrfToken={setCsrfToken}
+            session={session}
+          />
+        ) : screen === 'operations' ? (
+          <OperationsScreen
+            csrfToken={csrfToken}
             session={session}
           />
         ) : screen === 'units' ? (

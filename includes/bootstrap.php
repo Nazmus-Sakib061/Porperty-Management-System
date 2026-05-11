@@ -85,6 +85,7 @@ require_once __DIR__ . '/oauth.php';
 require_once __DIR__ . '/properties.php';
 require_once __DIR__ . '/units.php';
 require_once __DIR__ . '/tenants.php';
+require_once __DIR__ . '/leases.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/layout.php';

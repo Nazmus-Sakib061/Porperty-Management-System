@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../bootstrap.php';
 
 api_method(['POST']);
-api_require_role(['owner', 'manager']);
+api_require_role(['owner', 'manager', 'staff']);
 
 $csrfToken = (string) ($_POST['csrfToken'] ?? $_POST['csrf_token'] ?? '');
 
@@ -74,4 +74,3 @@ api_response([
     'image' => build_property_image_payload($image),
     'property' => build_property_payload(load_property_record_by_id($propertyId) ?? []),
 ]);
-
