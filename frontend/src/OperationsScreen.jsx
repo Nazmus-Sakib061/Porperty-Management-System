@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { createLease, deleteLease, getLeases, getProperties, getTenants, getUnits, updateLease } from './api';
+import {
+  createLease,
+  createUnit,
+  deleteLease,
+  deleteUnit,
+  getLeases,
+  getProperties,
+  getTenants,
+  getUnits,
+  updateLease,
+  updateUnit
+} from './api';
 
 function formatAmount(value) {
   const number = Number(value ?? 0);
@@ -109,6 +120,18 @@ const defaultLeaseForm = {
   notes: ''
 };
 
+const defaultUnitForm = {
+  id: '',
+  propertyId: '',
+  unitNumber: '',
+  status: 'available',
+  areaSqft: '',
+  monthlyRent: '',
+  securityDeposit: '',
+  description: '',
+  notes: ''
+};
+
 export default function OperationsScreen({ csrfToken = '' }) {
   const [properties, setProperties] = useState([]);
   const [units, setUnits] = useState([]);
@@ -122,6 +145,9 @@ export default function OperationsScreen({ csrfToken = '' }) {
   const [error, setError] = useState('');
   const [leaseError, setLeaseError] = useState('');
   const [leaseForm, setLeaseForm] = useState(defaultLeaseForm);
+  const [unitForm, setUnitForm] = useState(defaultUnitForm);
+  const [unitSaving, setUnitSaving] = useState(false);
+  const [unitError, setUnitError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -325,6 +351,26 @@ export default function OperationsScreen({ csrfToken = '' }) {
     setLeaseError('');
   }
 
+  function resetUnitForm() {
+    setUnitForm(defaultUnitForm);
+    setUnitError('');
+  }
+
+  function handleUnitEdit(unit) {
+    setUnitForm({
+      id: unit.id,
+      propertyId: String(unit.propertyId || unit.property?.id || ''),
+      unitNumber: unit.unitNumber || '',
+      status: unit.status || 'available',
+      areaSqft: unit.areaSqft ?? '',
+      monthlyRent: unit.monthlyRent ?? '',
+      securityDeposit: unit.securityDeposit ?? '',
+      description: unit.description || '',
+      notes: unit.notes || ''
+    });
+    setUnitError('');
+  }
+
   function handleLeaseEdit(lease) {
     setLeaseForm({
       id: lease.id,
@@ -397,6 +443,64 @@ export default function OperationsScreen({ csrfToken = '' }) {
     }
   }
 
+  async function handleUnitSubmit(event) {
+    event.preventDefault();
+    setUnitSaving(true);
+    setUnitError('');
+
+    try {
+      const payload = {
+        csrfToken,
+        id: unitForm.id ? Number(unitForm.id) : undefined,
+        propertyId: Number(unitForm.propertyId),
+        unitNumber: unitForm.unitNumber.trim(),
+        status: unitForm.status,
+        areaSqft: unitForm.areaSqft === '' ? null : Number(unitForm.areaSqft),
+        monthlyRent: unitForm.monthlyRent === '' ? 0 : Number(unitForm.monthlyRent),
+        securityDeposit: unitForm.securityDeposit === '' ? 0 : Number(unitForm.securityDeposit),
+        description: unitForm.description,
+        notes: unitForm.notes
+      };
+
+      const response = unitForm.id ? await updateUnit(payload) : await createUnit(payload);
+      const updatedUnit = response.unit;
+
+      setUnits((current) => {
+        const rest = current.filter((item) => String(item.id) !== String(updatedUnit.id));
+        return [updatedUnit, ...rest].sort(
+          (left, right) => new Date(right.updatedAt || right.createdAt || 0) - new Date(left.updatedAt || left.createdAt || 0)
+        );
+      });
+      resetUnitForm();
+    } catch (err) {
+      setUnitError(err.message || 'Failed to save flat information.');
+    } finally {
+      setUnitSaving(false);
+    }
+  }
+
+  async function handleUnitDelete(unitId) {
+    const confirmed = window.confirm('Delete this flat record?');
+    if (!confirmed) {
+      return;
+    }
+
+    setUnitSaving(true);
+    setUnitError('');
+
+    try {
+      await deleteUnit({ id: unitId, csrfToken });
+      setUnits((current) => current.filter((item) => String(item.id) !== String(unitId)));
+      if (String(unitForm.id) === String(unitId)) {
+        resetUnitForm();
+      }
+    } catch (err) {
+      setUnitError(err.message || 'Failed to delete flat information.');
+    } finally {
+      setUnitSaving(false);
+    }
+  }
+
   return (
     <section className="dashboard-grid">
       <header className="glass content-card property-header">
@@ -427,6 +531,205 @@ export default function OperationsScreen({ csrfToken = '' }) {
           <OpsMetricCard label="Vacant" value={stats.vacantUnits} hint="Ready for assignment" />
         </div>
       </header>
+
+      <section className="glass content-card ops-unit-workspace">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Flats</p>
+            <h2>Manual flat details</h2>
+            <p className="muted">
+              Enter each flat's serial, size, rent, and status by hand. Nothing is auto-filled here.
+            </p>
+          </div>
+          <div className="section-tools">
+            <button className="secondary-btn ghost-btn" type="button" onClick={resetUnitForm}>
+              New flat
+            </button>
+          </div>
+        </div>
+
+        {unitError ? <div className="alert error">{unitError}</div> : null}
+
+        <div className="ops-lease-grid">
+          <article className="lease-form-card">
+            <div className="section-header compact">
+              <div>
+                <p className="eyebrow">{unitForm.id ? 'Edit flat' : 'Add flat'}</p>
+                <h3>{unitForm.id ? 'Update flat information' : 'Create a flat manually'}</h3>
+              </div>
+            </div>
+
+            <form className="form-grid lease-form-grid" onSubmit={handleUnitSubmit}>
+              <label>
+                Building
+                <select
+                  required
+                  value={unitForm.propertyId}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, propertyId: event.target.value }))}
+                >
+                  <option value="">Choose building</option>
+                  {properties.map((property) => (
+                    <option key={property.id} value={property.id}>
+                      {property.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Flat serial
+                <input
+                  required
+                  placeholder="1-A"
+                  value={unitForm.unitNumber}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, unitNumber: event.target.value }))}
+                />
+              </label>
+
+              <label>
+                Size
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="1200"
+                  value={unitForm.areaSqft}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, areaSqft: event.target.value }))}
+                />
+              </label>
+
+              <label>
+                Monthly rent
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="45000"
+                  value={unitForm.monthlyRent}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, monthlyRent: event.target.value }))}
+                />
+              </label>
+
+              <label>
+                Security deposit
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0"
+                  value={unitForm.securityDeposit}
+                  onChange={(event) =>
+                    setUnitForm((current) => ({ ...current, securityDeposit: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Status
+                <select
+                  value={unitForm.status}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, status: event.target.value }))}
+                >
+                  <option value="available">Available</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </label>
+
+              <label className="full-width">
+                Description
+                <textarea
+                  rows="3"
+                  placeholder="Optional flat description"
+                  value={unitForm.description}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, description: event.target.value }))}
+                />
+              </label>
+
+              <label className="full-width">
+                Notes
+                <textarea
+                  rows="3"
+                  placeholder="Optional internal notes"
+                  value={unitForm.notes}
+                  onChange={(event) => setUnitForm((current) => ({ ...current, notes: event.target.value }))}
+                />
+              </label>
+
+              <div className="form-actions full-width">
+                <button className="primary-btn" type="submit" disabled={unitSaving}>
+                  {unitSaving ? 'Saving...' : unitForm.id ? 'Update flat' : 'Create flat'}
+                </button>
+                {unitForm.id ? (
+                  <button className="secondary-btn ghost-btn" type="button" onClick={resetUnitForm}>
+                    Cancel edit
+                  </button>
+                ) : null}
+              </div>
+            </form>
+          </article>
+
+          <article className="lease-form-card">
+            <div className="section-header compact">
+              <div>
+                <p className="eyebrow">Flat list</p>
+                <h3>Editable flat records</h3>
+              </div>
+            </div>
+
+            <div className="table-wrap compact-table">
+              <table className="property-table">
+                <thead>
+                  <tr>
+                    <th>Flat</th>
+                    <th>Building</th>
+                    <th>Size</th>
+                    <th>Rent</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUnits.length ? (
+                    filteredUnits.map((unit) => (
+                      <tr key={unit.id}>
+                        <td>
+                          <strong>{unit.unitNumber}</strong>
+                        </td>
+                        <td>{unit.property?.name || 'Unknown'}</td>
+                        <td>{unit.areaSqft ? `${unit.areaSqft} sqft` : 'Manual'}</td>
+                        <td>{formatAmount(unit.monthlyRent)}</td>
+                        <td>
+                          <span className={opStatusClass(unit.status)}>{unit.statusLabel}</span>
+                        </td>
+                        <td>
+                          <div className="property-row-actions">
+                            <button className="icon-btn" type="button" onClick={() => handleUnitEdit(unit)}>
+                              Edit
+                            </button>
+                            <button className="icon-btn danger" type="button" onClick={() => handleUnitDelete(unit.id)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6">
+                        <div className="empty-state property-empty-state">
+                          <strong>No flats to show.</strong>
+                          <span>Add a flat manually from the form on the left.</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </div>
+      </section>
 
       <article className="glass content-card ops-lease-workspace">
         <div className="section-header">
@@ -847,15 +1150,15 @@ export default function OperationsScreen({ csrfToken = '' }) {
             </div>
           </div>
 
-          <div className="property-table-footer">
-            <span>
-              Buildings: {properties.length} | Units: {units.length} | Tenants: {tenants.length}
-            </span>
-            <span className="pill">Future-ready for leases, bills, arrears, and notices</span>
-          </div>
-        </section>
+        <div className="property-table-footer">
+          <span>
+            Buildings: {properties.length} | Units: {units.length} | Tenants: {tenants.length}
+          </span>
+          <span className="pill">Future-ready for leases, bills, arrears, and notices</span>
+        </div>
+      </section>
 
-        <div className="operations-grid">
+      <div className="operations-grid">
           <OpsPanel eyebrow="Lease lifecycle" title="Active and upcoming leases" tone="green">
             <div className="operations-stack">
               <div className="helper-card">

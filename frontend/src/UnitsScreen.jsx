@@ -13,6 +13,7 @@ const defaultUnitForm = (properties = []) => ({
   propertyId: properties[0]?.id ? String(properties[0].id) : '',
   unitNumber: '',
   status: 'available',
+  areaSqft: '',
   monthlyRent: '0',
   securityDeposit: '0',
   description: '',
@@ -96,11 +97,22 @@ function unitFormFromUnit(unit) {
     propertyId: String(unit.propertyId || unit.property?.id || ''),
     unitNumber: unit.unitNumber || '',
     status: unit.status || 'available',
+    areaSqft: unit.areaSqft !== null && unit.areaSqft !== undefined ? String(unit.areaSqft) : '',
     monthlyRent: String(unit.monthlyRent ?? 0),
     securityDeposit: String(unit.securityDeposit ?? 0),
     description: unit.description || '',
     notes: unit.notes || ''
   };
+}
+
+function formatAreaSqft(value) {
+  const number = Number(value ?? 0);
+
+  if (!Number.isFinite(number) || number <= 0) {
+    return 'n/a';
+  }
+
+  return new Intl.NumberFormat('en-US').format(number) + ' sqft';
 }
 
 function UnitCard({ unit, canManageUnits, isSelected, onSelect, onEdit, onDelete }) {
@@ -133,8 +145,8 @@ function UnitCard({ unit, canManageUnits, isSelected, onSelect, onEdit, onDelete
             <dd>{formatAmount(unit.securityDeposit)}</dd>
           </div>
           <div>
-            <dt>Property type</dt>
-            <dd>{unit.property?.propertyType?.name || 'Untyped'}</dd>
+            <dt>Size</dt>
+            <dd>{formatAreaSqft(unit.areaSqft)}</dd>
           </div>
         </dl>
 
@@ -207,6 +219,10 @@ function UnitDetail({ unit, canManageUnits, loading, onEdit, onDelete }) {
           <div>
             <dt>Deposit</dt>
             <dd>{formatAmount(unit.securityDeposit)}</dd>
+          </div>
+          <div>
+            <dt>Size</dt>
+            <dd>{formatAreaSqft(unit.areaSqft)}</dd>
           </div>
           <div>
             <dt>Property</dt>
@@ -323,6 +339,7 @@ function UnitForm({
             onChange={(event) =>
               setUnitForm((current) => ({ ...current, unitNumber: event.target.value }))
             }
+            placeholder="1-A"
           />
         </label>
 
@@ -341,6 +358,20 @@ function UnitForm({
         </label>
 
         <div className="form-two-up">
+          <label>
+            Size
+            <input
+              min="1"
+              step="1"
+              type="number"
+              value={unitForm.areaSqft}
+              onChange={(event) =>
+                setUnitForm((current) => ({ ...current, areaSqft: event.target.value }))
+              }
+              placeholder="Example: 850"
+            />
+          </label>
+
           <label>
             Monthly rent
             <input

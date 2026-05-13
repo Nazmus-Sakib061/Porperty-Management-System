@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS units (
     property_id BIGINT UNSIGNED NOT NULL,
     unit_number VARCHAR(120) NOT NULL,
     status ENUM('available', 'occupied', 'maintenance', 'inactive') NOT NULL DEFAULT 'available',
+    area_sqft INT UNSIGNED NULL,
     description TEXT NULL,
     monthly_rent DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     security_deposit DECIMAL(12,2) NOT NULL DEFAULT 0.00,

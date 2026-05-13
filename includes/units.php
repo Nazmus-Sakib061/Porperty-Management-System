@@ -32,6 +32,11 @@ function validate_unit_notes(?string $value): ?string
     return validate_optional_property_text($value, 5000);
 }
 
+function validate_unit_area_sqft(mixed $value): ?int
+{
+    return validate_property_integer($value, 'unit size', 1, PHP_INT_MAX);
+}
+
 function validate_unit_rent(mixed $value): string
 {
     return validate_property_decimal($value, 'monthly rent', 2, 0, 999999999.99, '0.00');
@@ -64,6 +69,52 @@ function unit_number_exists(int $propertyId, string $unitNumber, ?int $ignoreId 
     return (int) ($row['total'] ?? 0) > 0;
 }
 
+function unit_number_from_sequence(int $floor, int $indexOnFloor): string
+{
+    $letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    $letter = $letters[max(0, min(count($letters) - 1, $indexOnFloor))];
+
+    return $floor . '-' . $letter;
+}
+
+function unit_sequence_from_number(string $unitNumber): ?array
+{
+    if (!preg_match('/^(\d+)\s*-\s*([A-G])$/i', trim($unitNumber), $matches)) {
+        return null;
+    }
+
+    return [
+        'floor' => (int) $matches[1],
+        'letter' => strtoupper($matches[2]),
+    ];
+}
+
+function unit_default_number_for_property(array $property, int $offset = 0): string
+{
+    $floors = max(1, (int) ($property['total_floors'] ?? 0));
+    $unitsPerFloor = 7;
+    $sequence = max(0, $offset);
+    $floor = min($floors, intdiv($sequence, $unitsPerFloor) + 1);
+    $indexOnFloor = $sequence % $unitsPerFloor;
+
+    return unit_number_from_sequence($floor, $indexOnFloor);
+}
+
+function unit_next_number_for_property(int $propertyId): string
+{
+    $property = load_property_record_by_id($propertyId);
+
+    if ($property === null) {
+        throw new InvalidArgumentException('The selected property does not exist.');
+    }
+
+    $statement = db()->prepare('SELECT COUNT(*) AS total FROM units WHERE property_id = :property_id');
+    $statement->execute(['property_id' => $propertyId]);
+    $count = (int) (($statement->fetch() ?: [])['total'] ?? 0);
+
+    return unit_default_number_for_property($property, $count);
+}
+
 function unit_base_columns(): string
 {
     return implode(', ', [
@@ -71,6 +122,7 @@ function unit_base_columns(): string
         'u.property_id',
         'u.unit_number',
         'u.status',
+        'u.area_sqft',
         'u.description',
         'u.monthly_rent',
         'u.security_deposit',
@@ -161,6 +213,7 @@ function build_unit_payload(array $record): array
         'unitNumber' => (string) ($record['unit_number'] ?? ''),
         'status' => $status,
         'statusLabel' => unit_status_label($status),
+        'areaSqft' => $record['area_sqft'] !== null ? (int) $record['area_sqft'] : null,
         'description' => $record['description'] !== null ? (string) $record['description'] : null,
         'monthlyRent' => (float) ($record['monthly_rent'] ?? 0),
         'securityDeposit' => (float) ($record['security_deposit'] ?? 0),
@@ -264,8 +317,14 @@ function normalize_unit_payload(array $data, ?int $ignoreId = null): array
         throw new InvalidArgumentException('The selected property does not exist.');
     }
 
-    $unitNumber = validate_unit_number((string) ($data['unitNumber'] ?? $data['unit_number'] ?? ''));
+    $rawUnitNumber = trim((string) ($data['unitNumber'] ?? $data['unit_number'] ?? ''));
+    if ($rawUnitNumber === '') {
+        $rawUnitNumber = unit_next_number_for_property($propertyId);
+    }
+
+    $unitNumber = validate_unit_number($rawUnitNumber);
     $status = normalize_unit_status((string) ($data['status'] ?? 'available'));
+    $areaSqft = validate_unit_area_sqft($data['areaSqft'] ?? $data['area_sqft'] ?? null);
     $description = validate_unit_description($data['description'] ?? null);
     $monthlyRent = validate_unit_rent($data['monthlyRent'] ?? $data['monthly_rent'] ?? 0);
     $securityDeposit = validate_unit_deposit($data['securityDeposit'] ?? $data['security_deposit'] ?? 0);
@@ -279,6 +338,7 @@ function normalize_unit_payload(array $data, ?int $ignoreId = null): array
         'property_id' => $propertyId,
         'unit_number' => $unitNumber,
         'status' => $status,
+        'area_sqft' => $areaSqft,
         'description' => $description,
         'monthly_rent' => $monthlyRent,
         'security_deposit' => $securityDeposit,
@@ -295,6 +355,7 @@ function create_unit_record(array $data, ?int $creatorId = null): array
             property_id,
             unit_number,
             status,
+            area_sqft,
             description,
             monthly_rent,
             security_deposit,
@@ -304,6 +365,7 @@ function create_unit_record(array $data, ?int $creatorId = null): array
             :property_id,
             :unit_number,
             :status,
+            :area_sqft,
             :description,
             :monthly_rent,
             :security_deposit,
@@ -315,6 +377,7 @@ function create_unit_record(array $data, ?int $creatorId = null): array
         'property_id' => $payload['property_id'],
         'unit_number' => $payload['unit_number'],
         'status' => $payload['status'],
+        'area_sqft' => $payload['area_sqft'],
         'description' => $payload['description'],
         'monthly_rent' => $payload['monthly_rent'],
         'security_deposit' => $payload['security_deposit'],
@@ -344,6 +407,7 @@ function update_unit_record(int $id, array $data): array
          SET property_id = :property_id,
              unit_number = :unit_number,
              status = :status,
+             area_sqft = :area_sqft,
              description = :description,
              monthly_rent = :monthly_rent,
              security_deposit = :security_deposit,
@@ -355,6 +419,7 @@ function update_unit_record(int $id, array $data): array
         'property_id' => $payload['property_id'],
         'unit_number' => $payload['unit_number'],
         'status' => $payload['status'],
+        'area_sqft' => $payload['area_sqft'],
         'description' => $payload['description'],
         'monthly_rent' => $payload['monthly_rent'],
         'security_deposit' => $payload['security_deposit'],

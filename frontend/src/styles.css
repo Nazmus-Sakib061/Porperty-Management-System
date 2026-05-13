@@ -2503,6 +2503,46 @@ input {
   min-width: 150px;
 }
 
+.ops-unit-workspace {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.ops-unit-workspace .lease-form-grid {
+  align-items: start;
+}
+
+.ops-unit-workspace .form-grid label.full-width {
+  grid-column: 1 / -1;
+}
+
+.ops-unit-workspace .form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ops-unit-workspace .form-actions .primary-btn,
+.ops-unit-workspace .form-actions .secondary-btn {
+  min-width: 150px;
+}
+
+.compact-table {
+  overflow-x: auto;
+}
+
+.compact-table .property-table {
+  min-width: 780px;
+}
+
+.property-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .lease-table .property-location-cell strong,
 .lease-table .property-units-cell strong {
   font-size: 0.95rem;

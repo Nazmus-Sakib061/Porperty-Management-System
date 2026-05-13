@@ -9,7 +9,6 @@ if (is_logged_in()) {
 }
 
 $googleLoginEnabled = google_oauth_enabled();
-
 render_auth_start('Sign in with Google', 'Use your Google account to continue.');
 
 echo '<p class="lead">Password login and manual registration are removed. Only Google sign-in remains active.</p>';
