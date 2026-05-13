@@ -175,53 +175,6 @@ function PropertyGlyph({ tone = 'green' }) {
   );
 }
 
-function RowActionIcon({ name }) {
-  switch (name) {
-    case 'view':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M2.75 12S6.25 6.75 12 6.75 21.25 12 21.25 12 17.75 17.25 12 17.25 2.75 12 2.75 12Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
-        </svg>
-      );
-    case 'edit':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M4.75 19.25H8.5L18.25 9.5 14.5 5.75 4.75 15.5V19.25Z"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinejoin="round"
-          />
-          <path d="M12.75 7.5 16.5 11.25" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-        </svg>
-      );
-    case 'delete':
-      return (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path
-            d="M5.75 7.25H18.25M9.25 7.25V5.75H14.75V7.25M8.25 10V17.5M12 10V17.5M15.75 10V17.5M7 7.25 7.75 19.25H16.25L17 7.25"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
-
 function propertyFormFromProperty(property, propertyTypes = []) {
   if (!property) {
     return defaultPropertyForm(propertyTypes);
@@ -270,7 +223,7 @@ function propertyTypeFormFromType(type) {
   };
 }
 
-function PropertyCard({ property, canManageProperties, isSelected, onSelect, onEdit, onDelete }) {
+function PropertyCard({ property, canEditProperties, canDeleteProperties, isSelected, onSelect, onEdit, onDelete }) {
   return (
     <article className={isSelected ? 'property-card selected glass' : 'property-card glass'}>
       <button className="property-card-media" type="button" onClick={() => onSelect(property.id)}>
@@ -316,15 +269,15 @@ function PropertyCard({ property, canManageProperties, isSelected, onSelect, onE
           <button className="secondary-btn" type="button" onClick={() => onSelect(property.id)}>
             View
           </button>
-          {canManageProperties ? (
-            <>
-              <button className="secondary-btn" type="button" onClick={() => onEdit(property)}>
-                Edit
-              </button>
-              <button className="secondary-btn danger-btn" type="button" onClick={() => onDelete(property)}>
-                Delete
-              </button>
-            </>
+          {canEditProperties ? (
+            <button className="secondary-btn property-row-edit-btn" type="button" onClick={() => onEdit(property)}>
+              Edit
+            </button>
+          ) : null}
+          {canDeleteProperties ? (
+            <button className="secondary-btn danger-btn" type="button" onClick={() => onDelete(property)}>
+              Delete
+            </button>
           ) : null}
         </div>
       </div>
@@ -332,7 +285,7 @@ function PropertyCard({ property, canManageProperties, isSelected, onSelect, onE
   );
 }
 
-function PropertyTableRow({ property, canManageProperties, isSelected, onSelect, onEdit, onDelete }) {
+function PropertyTableRow({ property, canEditProperties, canDeleteProperties, isSelected, onSelect, onEdit, onDelete }) {
   const imageSrc = property.coverImageUrl || property.imageUrl || property.image || '';
 
   return (
@@ -378,18 +331,18 @@ function PropertyTableRow({ property, canManageProperties, isSelected, onSelect,
       </td>
       <td>
         <div className="property-row-actions">
-          <button className="icon-action-btn" type="button" onClick={() => onSelect(property.id)} aria-label={`View ${property.name}`}>
-            <RowActionIcon name="view" />
+          <button className="secondary-btn property-row-action-btn" type="button" onClick={() => onSelect(property.id)}>
+            View
           </button>
-          {canManageProperties ? (
-            <>
-              <button className="icon-action-btn" type="button" onClick={() => onEdit(property)} aria-label={`Edit ${property.name}`}>
-                <RowActionIcon name="edit" />
-              </button>
-              <button className="icon-action-btn danger" type="button" onClick={() => onDelete(property)} aria-label={`Delete ${property.name}`}>
-                <RowActionIcon name="delete" />
-              </button>
-            </>
+          {canEditProperties ? (
+            <button className="secondary-btn property-row-action-btn property-row-edit-btn" type="button" onClick={() => onEdit(property)}>
+              Edit
+            </button>
+          ) : null}
+          {canDeleteProperties ? (
+            <button className="secondary-btn danger-btn property-row-action-btn" type="button" onClick={() => onDelete(property)}>
+              Delete
+            </button>
           ) : null}
         </div>
       </td>
@@ -417,7 +370,8 @@ function PropertyMetricCard({ label, value, hint, tone = 'default', delta, delta
 
 function PropertyDetail({
   property,
-  canManageProperties,
+  canEditProperties,
+  canDeleteProperties,
   loading,
   onEdit,
   onDelete,
@@ -572,14 +526,18 @@ function PropertyDetail({
         </article>
       ) : null}
 
-      {canManageProperties ? (
+      {canEditProperties || canDeleteProperties ? (
         <div className="property-detail-actions">
-          <button className="primary-btn" type="button" onClick={() => onEdit(property)}>
-            Edit property
-          </button>
-          <button className="secondary-btn danger-btn" type="button" onClick={() => onDelete(property)}>
-            Delete property
-          </button>
+          {canEditProperties ? (
+            <button className="primary-btn" type="button" onClick={() => onEdit(property)}>
+              Edit property
+            </button>
+          ) : null}
+          {canDeleteProperties ? (
+            <button className="secondary-btn danger-btn" type="button" onClick={() => onDelete(property)}>
+              Delete property
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -600,7 +558,7 @@ function PropertyDetail({
                 <strong>{image.caption || 'Untitled image'}</strong>
                 <span>{image.isPrimary ? 'Primary image' : 'Secondary image'}</span>
               </figcaption>
-              {canManageProperties ? (
+              {canDeleteProperties ? (
                 <button className="secondary-btn danger-btn gallery-delete" type="button" onClick={() => onDeleteImage(image)}>
                   Remove
                 </button>
@@ -616,7 +574,7 @@ function PropertyDetail({
           ) : null}
         </div>
 
-        {canManageProperties ? (
+        {canDeleteProperties ? (
           <form className="form-grid upload-form" onSubmit={onUploadImage}>
             <label className="photo-dropzone">
               <input
@@ -660,7 +618,7 @@ function PropertyDetail({
   );
 }
 
-function PropertyForm({ mode, canManageProperties, propertyForm, propertyTypes, setPropertyForm, onSubmit, onCancel, busy }) {
+function PropertyForm({ mode, canEditProperties, propertyForm, propertyTypes, setPropertyForm, onSubmit, onCancel, busy }) {
   const title = mode === 'create' ? 'Add building' : 'Edit building';
 
   return (
@@ -675,8 +633,8 @@ function PropertyForm({ mode, canManageProperties, propertyForm, propertyTypes, 
         </button>
       </div>
 
-      {!canManageProperties ? (
-        <div className="alert warning">You can view properties, but only managers and owners can edit them.</div>
+      {!canEditProperties ? (
+        <div className="alert warning">You can view properties, but only users with property access can edit them.</div>
       ) : null}
 
       <form className="form-grid property-form" onSubmit={onSubmit}>
@@ -987,7 +945,7 @@ function PropertyForm({ mode, canManageProperties, propertyForm, propertyTypes, 
         </label>
 
         <div className="property-form-actions">
-          <button className="primary-btn" type="submit" disabled={busy || !canManageProperties}>
+          <button className="primary-btn" type="submit" disabled={busy || !canEditProperties}>
             {busy ? 'Saving...' : mode === 'create' ? 'Create property' : 'Save changes'}
           </button>
           <button className="secondary-btn" type="button" onClick={onCancel}>
@@ -1131,6 +1089,7 @@ function PropertyTypesPanel({ canManagePropertyTypes, propertyTypes, typeFormMod
 
 function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   const canManageProperties = Boolean(session?.permissions?.canManageProperties);
+  const canEditProperties = Boolean(session?.permissions?.canManageProperties || session?.permissions?.canViewProperties);
   const canManagePropertyTypes = Boolean(session?.permissions?.canManagePropertyTypes);
 
   const [activeTab, setActiveTab] = useState('properties');
@@ -1324,7 +1283,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   }
 
   function startEditProperty(property) {
-    if (!canManageProperties) {
+    if (!canEditProperties) {
       return;
     }
 
@@ -1401,7 +1360,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   async function handlePropertySubmit(event) {
     event.preventDefault();
 
-    if (!canManageProperties) {
+    if (!canEditProperties) {
       return;
     }
 
@@ -1787,7 +1746,8 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
                   {pagedProperties.map((property) => (
                     <PropertyTableRow
                       key={property.id}
-                      canManageProperties={canManageProperties}
+                      canDeleteProperties={canManageProperties}
+                      canEditProperties={canEditProperties}
                       isSelected={property.id === selectedPropertyId}
                       onDelete={handleDeleteProperty}
                       onEdit={startEditProperty}
@@ -1873,7 +1833,8 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
               >
                 <PropertyForm
                   busy={propertyBusy}
-                  canManageProperties={canManageProperties}
+                  canDeleteProperties={canManageProperties}
+                  canEditProperties={canEditProperties}
                   mode={propertyFormMode}
                   onCancel={cancelPropertyForm}
                   onSubmit={handlePropertySubmit}
@@ -1904,7 +1865,8 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
                 onPointerDown={(event) => event.stopPropagation()}
               >
                 <PropertyDetail
-                  canManageProperties={canManageProperties}
+                  canDeleteProperties={canManageProperties}
+                  canEditProperties={canEditProperties}
                   loading={loadingProperty}
                   imageState={imageState}
                   onDelete={handleDeleteProperty}

@@ -1009,13 +1009,14 @@ function bootstrap_property_units(array $propertyRecord, ?int $creatorId = null)
     $statement = db()->prepare('SELECT COUNT(*) AS total FROM units WHERE property_id = :property_id');
     $statement->execute(['property_id' => $propertyId]);
     $existingCount = (int) (($statement->fetch() ?: [])['total'] ?? 0);
+    $maxUnits = min($totalUnits, 98);
 
-    if ($existingCount >= $totalUnits) {
+    if ($existingCount >= $maxUnits) {
         return;
     }
 
-    for ($index = $existingCount + 1; $index <= $totalUnits; $index++) {
-        $unitNumber = sprintf('%s %02d', $prefix, $index);
+    for ($index = $existingCount + 1; $index <= $maxUnits; $index++) {
+        $unitNumber = unit_next_number_for_property($propertyId);
 
         if (unit_number_exists($propertyId, $unitNumber)) {
             continue;
