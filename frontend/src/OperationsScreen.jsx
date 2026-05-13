@@ -701,11 +701,20 @@ export default function OperationsScreen({ csrfToken = '' }) {
           <div className="property-toolbar-heading">
             <p className="eyebrow">Search</p>
             <h3>Track a building, unit, or tenant</h3>
+            <p className="muted property-toolbar-subtitle">
+              Quickly narrow the workspace by building, unit number, tenant name, or city.
+            </p>
           </div>
 
           <form className="property-toolbar-row" onSubmit={(event) => event.preventDefault()}>
             <label className="property-search-field">
               <span className="sr-only">Search operations</span>
+              <span className="property-search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  <path d="M16.2 16.2 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </span>
               <input
                 placeholder="Search by building, unit, tenant, or city..."
                 value={query}
@@ -725,10 +734,29 @@ export default function OperationsScreen({ csrfToken = '' }) {
               </select>
             </label>
 
+            <button
+              className="ghost-btn property-reset-btn"
+              type="button"
+              disabled={loading && !query && !selectedPropertyId}
+              onClick={() => {
+                setQuery('');
+                setSelectedPropertyId('');
+              }}
+            >
+              Reset
+            </button>
+
             <button className="secondary-btn property-filter-btn" type="button" disabled={loading}>
               {loading ? 'Loading...' : 'Filters'}
             </button>
           </form>
+
+          <div className="property-toolbar-meta">
+            <span className="property-toolbar-chip">Buildings: {properties.length}</span>
+            <span className="property-toolbar-chip">Units: {filteredUnits.length}</span>
+            <span className="property-toolbar-chip">Tenants: {filteredTenants.length}</span>
+            {selectedProperty ? <span className="property-toolbar-chip accent">Focused: {selectedProperty.name}</span> : null}
+          </div>
         </article>
 
         <section className="glass content-card property-list-column property-list-panel">

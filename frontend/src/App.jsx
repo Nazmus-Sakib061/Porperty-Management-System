@@ -55,6 +55,34 @@ const defaultSetup = {
 const GOOGLE_IDENTITY_SCRIPT_SRC = 'https://accounts.google.com/gsi/client';
 let googleIdentityScriptPromise = null;
 
+const APP_SCREENS = new Set(['dashboard', 'properties', 'operations', 'units', 'tenants', 'users', 'profile']);
+
+function getInitialScreen() {
+  if (typeof window === 'undefined') {
+    return 'dashboard';
+  }
+
+  const hash = window.location.hash.replace('#', '').trim();
+
+  return APP_SCREENS.has(hash) ? hash : 'dashboard';
+}
+
+function syncScreenHash(screen) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+
+  if (screen === 'dashboard') {
+    url.hash = '';
+  } else {
+    url.hash = screen;
+  }
+
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
 function loadGoogleIdentityScript() {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return Promise.reject(new Error('Google sign-in is only available in the browser.'));
@@ -369,7 +397,7 @@ function App() {
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [screen, setScreen] = useState('dashboard');
+  const [screen, setScreen] = useState(getInitialScreen);
   const [dashboardSearch, setDashboardSearch] = useState('');
   const [authMode, setAuthMode] = useState('login');
   const [loginForm, setLoginForm] = useState(defaultLoginForm);
@@ -488,6 +516,27 @@ function App() {
 
     return () => {
       mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    syncScreenHash(screen);
+  }, [screen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    function handleHashChange() {
+      const nextScreen = getInitialScreen();
+      setScreen((current) => (current === nextScreen ? current : nextScreen));
+    }
+
+    window.addEventListener('hashchange', handleHashChange);
+
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
     };
   }, []);
 
@@ -1087,12 +1136,12 @@ function App() {
 
         <nav className="nav-list">
           {navItems.map((item) => (
-            <button
-              key={item.key}
-              className={screen === item.key ? 'nav-item active' : 'nav-item'}
-              onClick={() => setScreen(item.key)}
-              type="button"
-            >
+              <button
+                key={item.key}
+                className={screen === item.key ? 'nav-item active' : 'nav-item'}
+                onClick={() => setScreen(item.key)}
+                type="button"
+              >
               <span className="nav-icon" aria-hidden="true">
                 <UIIcon name={item.icon} />
               </span>

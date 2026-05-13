@@ -46,6 +46,18 @@ function app_url(string $path = ''): string
     return $base . '/' . $path;
 }
 
+function app_origin_url(): string
+{
+    if (PHP_SAPI === 'cli') {
+        return 'http://localhost:8000';
+    }
+
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+
+    return $scheme . '://' . $host;
+}
+
 function redirect(string $path): void
 {
     header('Location: ' . app_url($path));
