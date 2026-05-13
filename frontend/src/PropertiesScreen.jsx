@@ -441,6 +441,14 @@ function PropertyDetail({
     );
   }
 
+  const primaryImage =
+    property.coverImageUrl ||
+    property.imageUrl ||
+    property.images?.find((image) => image.isPrimary)?.imageUrl ||
+    property.images?.[0]?.imageUrl ||
+    property.image ||
+    '';
+
   return (
     <section className="glass content-card property-detail">
       <div className="section-header">
@@ -458,11 +466,8 @@ function PropertyDetail({
 
       <div className="property-hero">
         <div className="property-hero-media">
-          {property.coverImageUrl || property.imageUrl || property.image ? (
-            <img
-              src={property.coverImageUrl || property.imageUrl || property.image}
-              alt={property.coverImageCaption || property.name}
-            />
+          {primaryImage ? (
+            <img src={primaryImage} alt={property.coverImageCaption || property.name} />
           ) : (
             <div className="property-hero-placeholder">
               <span>No image yet</span>
@@ -557,13 +562,6 @@ function PropertyDetail({
         <article className="helper-card">
           <strong>Description</strong>
           <span>{property.description}</span>
-        </article>
-      ) : null}
-
-      {property.image || property.imageUrl ? (
-        <article className="helper-card">
-          <strong>Image reference</strong>
-          <span>{property.image || property.imageUrl}</span>
         </article>
       ) : null}
 
@@ -682,6 +680,7 @@ function PropertyForm({ mode, canManageProperties, propertyForm, propertyTypes, 
       ) : null}
 
       <form className="form-grid property-form" onSubmit={onSubmit}>
+
         <label>
           Property type
           <select
@@ -747,22 +746,6 @@ function PropertyForm({ mode, canManageProperties, propertyForm, propertyTypes, 
             }
             placeholder="Property deed reference"
           />
-        </label>
-
-        <label>
-          Status
-          <select
-            value={propertyForm.status}
-            onChange={(event) =>
-              setPropertyForm((current) => ({ ...current, status: event.target.value }))
-            }
-          >
-            {Object.entries(PROPERTY_STATUS_OPTIONS).filter(([key]) => key !== 'all').map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
         </label>
 
         <label>
@@ -1180,6 +1163,21 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('');
+
+  useEffect(() => {
+    if (!imageState.file) {
+      setImagePreviewUrl('');
+      return undefined;
+    }
+
+    const nextUrl = URL.createObjectURL(imageState.file);
+    setImagePreviewUrl(nextUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextUrl);
+    };
+  }, [imageState.file]);
 
   const propertyTypeOptions = useMemo(() => propertyTypes, [propertyTypes]);
   const currentPropertyCount = properties.length;
@@ -1347,6 +1345,10 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
     }
   }
 
+  function closePropertyDetail() {
+    setPropertyFormMode('');
+  }
+
   function startCreateType() {
     if (!canManagePropertyTypes) {
       return;
@@ -1497,7 +1499,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
       }));
       await loadCatalog(selectedPropertyId);
       const detail = await getProperty(selectedPropertyId);
-      setSelectedProperty(detail.property || null);
+      setSelectedProperty(response.property || detail.property || null);
     } catch (err) {
       setError(err.message || 'The property image could not be uploaded.');
     } finally {
@@ -1528,7 +1530,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
       setNotice(response.message || 'Property image deleted successfully.');
       await loadCatalog(selectedPropertyId);
       const detail = await getProperty(selectedPropertyId);
-      setSelectedProperty(detail.property || null);
+      setSelectedProperty(response.property || detail.property || null);
     } catch (err) {
       setError(err.message || 'The property image could not be deleted.');
     } finally {
@@ -1855,9 +1857,14 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
             <div
               className="property-modal-backdrop"
               role="presentation"
+              onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                  cancelPropertyForm();
+                }
+              }}
             >
               <div
-                className="property-modal-sheet"
+                className="property-modal-sheet property-modal-sheet-drawer"
                 role="dialog"
                 aria-modal="true"
                 onClick={(event) => event.stopPropagation()}
@@ -1880,11 +1887,16 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
 
           {propertyFormMode === 'detail' && selectedProperty ? (
             <div
-              className="property-modal-backdrop"
+              className="property-modal-backdrop property-modal-backdrop-detail"
               role="presentation"
+              onClick={(event) => {
+                if (event.target === event.currentTarget) {
+                  closePropertyDetail();
+                }
+              }}
             >
               <div
-                className="property-modal-sheet property-modal-sheet-wide"
+                className="property-modal-sheet property-modal-sheet-wide property-modal-sheet-drawer"
                 role="dialog"
                 aria-modal="true"
                 onClick={(event) => event.stopPropagation()}
