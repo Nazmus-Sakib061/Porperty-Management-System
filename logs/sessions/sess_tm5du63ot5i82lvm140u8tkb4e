@@ -1,0 +1,1 @@
+user|a:10:{s:2:"id";i:1;s:4:"name";s:5:"Owner";s:5:"email";s:17:"owner@example.com";s:4:"role";s:5:"owner";s:6:"status";s:6:"active";s:5:"phone";s:0:"";s:18:"profile_photo_path";N;s:17:"profile_photo_url";N;s:20:"must_change_password";b:0;s:12:"logged_in_at";i:1778442136;}csrf_token|s:64:"a9b9578eaaaa0da1b4143f031e3a793bc06b7d6e5cbc2ccf5f5abc95fed58142";
