@@ -272,7 +272,9 @@ function login_user_from_google_profile(array $profile): array
         return $existingUser;
     }
 
-    $role = count_total_users() === 0 ? 'owner' : 'staff';
+    // The first privileged account should be owner even if other non-owner
+    // accounts already exist in the database.
+    $role = count_owner_accounts() === 0 ? 'owner' : 'staff';
 
     $user = create_google_user_record([
         'name' => $name,

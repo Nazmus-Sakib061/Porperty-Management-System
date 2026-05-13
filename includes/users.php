@@ -600,6 +600,33 @@ function update_user_profile_photo(int $userId, ?string $relativePath): array
     return $record;
 }
 
+function update_user_role(int $userId, string $role): array
+{
+    $role = normalize_role($role);
+
+    if (!is_allowed_role($role)) {
+        throw new InvalidArgumentException('Please choose a valid role.');
+    }
+
+    $statement = db()->prepare(
+        'UPDATE users
+         SET role = :role
+         WHERE id = :id'
+    );
+    $statement->execute([
+        'id' => $userId,
+        'role' => $role,
+    ]);
+
+    $record = load_user_record_by_id($userId);
+
+    if ($record === null) {
+        throw new RuntimeException('The user role could not be updated.');
+    }
+
+    return $record;
+}
+
 function update_user_password_hash(int $userId, string $passwordHash): void
 {
     $statement = db()->prepare(

@@ -30,6 +30,14 @@ function current_user(): ?array
         return null;
     }
 
+    if (count_owner_accounts() === 0 && normalize_role((string) ($record['role'] ?? '')) !== 'owner') {
+        try {
+            $record = update_user_role((int) $record['id'], 'owner');
+        } catch (Throwable $exception) {
+            // Keep the existing session if the promotion step fails.
+        }
+    }
+
     $record['logged_in_at'] = (int) ($sessionUser['logged_in_at'] ?? time());
     $user = build_user_payload($record);
     $_SESSION['user'] = build_session_user_payload($record);
