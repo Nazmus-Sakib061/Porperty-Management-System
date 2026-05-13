@@ -477,6 +477,9 @@ function build_property_payload(array $record): array
     $coverImagePath = sanitize_relative_property_image_path(
         $record['cover_image_path'] ?? $record['coverImagePath'] ?? null
     );
+    if ($coverImagePath === null && isset($images[0]['imagePath'])) {
+        $coverImagePath = sanitize_relative_property_image_path((string) $images[0]['imagePath']);
+    }
     $coverImageUrl = $coverImagePath !== null ? property_image_url($coverImagePath) : null;
     $propertyTypeId = (int) ($record['property_type_id'] ?? 0);
     $propertyType = [
@@ -589,8 +592,8 @@ function build_property_payload(array $record): array
         'specSummary' => implode(' • ', $specParts),
         'coverImagePath' => $coverImagePath,
         'coverImageUrl' => $coverImageUrl,
-        'imageUrl' => $coverImageUrl ?? $cachedImageUrl ?? ($record['image'] !== null ? (string) $record['image'] : null),
-        'coverImageCaption' => $record['cover_image_caption'] !== null ? (string) $record['cover_image_caption'] : null,
+        'imageUrl' => $coverImageUrl ?? $cachedImageUrl ?? ($images[0]['imageUrl'] ?? null) ?? ($record['image'] !== null ? property_image_url((string) $record['image']) : null),
+        'coverImageCaption' => ($record['cover_image_caption'] ?? null) !== null ? (string) $record['cover_image_caption'] : null,
         'imageCount' => (int) ($record['image_count'] ?? count($images)),
         'images' => $images,
         'createdBy' => $createdBy,
