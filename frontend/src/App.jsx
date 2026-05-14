@@ -46,31 +46,164 @@ const defaultSetup = {
 };
 
 const APP_SCREENS = new Set(['dashboard', 'properties', 'operations', 'units', 'tenants', 'users', 'profile']);
+const DASHBOARD_BOUNDARY_STATE = { authenticatedDashboardBoundary: true };
+
+function normalizeScreenHash(hash) {
+  return hash.replace(/^#\/?/, '').replace(/^\//, '').trim();
+}
 
 function getInitialScreen() {
   if (typeof window === 'undefined') {
     return 'dashboard';
   }
 
-  const hash = window.location.hash.replace('#', '').trim();
+  const hash = normalizeScreenHash(window.location.hash);
 
   return APP_SCREENS.has(hash) ? hash : 'dashboard';
 }
 
-function syncScreenHash(screen) {
+function isDashboardRouteHash(hash) {
+  return normalizeScreenHash(hash) === '';
+}
+
+function isAuthLikeLocation() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const href = window.location.href.toLowerCase();
+  return [
+    '/login',
+    '/signup',
+    '/register',
+    '/verify',
+    'verification',
+    'email-verification',
+    '/otp',
+    '/auth',
+    'google-callback',
+    'google-start'
+  ].some((token) => href.includes(token));
+}
+
+function getFrontendOrigin() {
+  if (typeof window === 'undefined') {
+    return 'http://localhost:5173';
+  }
+
+  return window.location.origin.includes('5173') ? window.location.origin : 'http://localhost:5173';
+}
+
+function syncScreenHash(screen, mode = 'replace', baseOrigin = null) {
   if (typeof window === 'undefined') {
     return;
   }
 
   const url = new URL(window.location.href);
+  const origin = baseOrigin || window.location.origin;
+  const safeOrigin = origin.includes('5173') ? origin : getFrontendOrigin();
 
   if (screen === 'dashboard') {
     url.hash = '';
   } else {
-    url.hash = screen;
+    url.hash = `/${screen}`;
   }
 
-  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  const nextUrl = `${safeOrigin}/#${screen === 'dashboard' ? '' : `/${screen}`}`;
+
+  if (mode === 'push') {
+    window.history.pushState({ screen }, '', nextUrl);
+    return;
+  }
+
+  window.history.replaceState({ screen }, '', nextUrl);
+}
+
+function getDashboardUrl() {
+  if (typeof window === 'undefined') {
+    return '/';
+  }
+
+  return `${getFrontendOrigin()}/#`;
+}
+
+function useDashboardHistoryBoundary(isAuthenticated) {
+  const boundaryInitializedRef = useRef(false);
+  const restoringRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    if (!isAuthenticated) {
+      boundaryInitializedRef.current = false;
+      return undefined;
+    }
+
+    if (!isDashboardRouteHash(window.location.hash)) {
+      return undefined;
+    }
+
+    const dashboardUrl = getDashboardUrl();
+
+    const installBoundary = () => {
+      const currentState = window.history.state || {};
+
+      if (!boundaryInitializedRef.current) {
+        if (currentState.authenticatedDashboardBoundary) {
+          boundaryInitializedRef.current = true;
+          return;
+        }
+
+        window.history.replaceState(
+          { ...currentState, screen: 'dashboard', authenticatedRoot: true },
+          '',
+          dashboardUrl
+        );
+        window.history.pushState(
+          { ...DASHBOARD_BOUNDARY_STATE, screen: 'dashboard', authenticatedRoot: true },
+          '',
+          dashboardUrl
+        );
+        boundaryInitializedRef.current = true;
+        return;
+      }
+
+      if (!currentState.authenticatedDashboardBoundary) {
+        window.history.pushState(
+          { ...DASHBOARD_BOUNDARY_STATE, screen: 'dashboard', authenticatedRoot: true },
+          '',
+          dashboardUrl
+        );
+      }
+    };
+
+    const keepDashboardRoot = () => {
+      if (!isAuthenticated) {
+        return;
+      }
+
+      if (restoringRef.current) {
+        return;
+      }
+
+      restoringRef.current = true;
+      window.history.go(1);
+
+      window.setTimeout(() => {
+        restoringRef.current = false;
+      }, 0);
+    };
+
+    installBoundary();
+
+    window.addEventListener('popstate', keepDashboardRoot);
+
+    return () => {
+      window.removeEventListener('popstate', keepDashboardRoot);
+    };
+  }, [isAuthenticated]);
 }
 
 function formatDateTime(value) {
@@ -370,6 +503,7 @@ function App() {
   const [temporaryPassword, setTemporaryPassword] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
+  const hasSeededAuthenticatedHistory = useRef(false);
 
   const roleLabel = useMemo(() => session?.roleLabel || 'Guest', [session]);
   const googleOauthEnabled = Boolean(setup.googleOauthEnabled);
@@ -461,23 +595,40 @@ function App() {
   }, []);
 
   useEffect(() => {
-    syncScreenHash(screen);
-  }, [screen]);
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (booting) {
+      return;
+    }
+
+    if (!session) {
+      hasSeededAuthenticatedHistory.current = false;
+      syncScreenHash(screen, 'replace');
+      return;
+    }
+
+    syncScreenHash(screen, hasSeededAuthenticatedHistory.current ? 'push' : 'replace', getFrontendOrigin());
+    hasSeededAuthenticatedHistory.current = true;
+  }, [booting, screen, session]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
     }
 
-    function handleHashChange() {
+    function handleNavigationChange() {
       const nextScreen = getInitialScreen();
       setScreen((current) => (current === nextScreen ? current : nextScreen));
     }
 
-    window.addEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleNavigationChange);
+    window.addEventListener('hashchange', handleNavigationChange);
 
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleNavigationChange);
+      window.removeEventListener('hashchange', handleNavigationChange);
     };
   }, []);
 
@@ -740,7 +891,7 @@ function App() {
     resetStatus();
 
     try {
-      window.location.assign('/api/auth/google-start.php');
+      window.location.replace('/api/auth/google-start.php');
     } catch (err) {
       setError(err.message || 'Google sign-in is not configured yet.');
     }
@@ -1090,6 +1241,7 @@ function App() {
             dashboardProperties={dashboardProperties}
             onOpenProperties={() => setScreen('properties')}
             summary={summary}
+            isAuthenticated={Boolean(session)}
           />
         ) : screen === 'properties' ? (
           <PropertiesScreen
@@ -1273,9 +1425,11 @@ function DashboardScreen({
   dashboardSearch,
   dashboardProperties,
   onOpenProperties,
-  summary
+  summary,
+  isAuthenticated
 }) {
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  useDashboardHistoryBoundary(isAuthenticated);
 
   const searchQuery = normalizeSearch(dashboardSearch);
   const summaryProperties = summary?.propertyBreakdown?.properties || {};

@@ -8,6 +8,10 @@ api_method(['GET', 'POST']);
 
 $frontendRedirect = google_oauth_post_login_redirect();
 
+if (is_logged_in()) {
+    redirect($frontendRedirect);
+}
+
 function redirect_with_message(string $redirect, string $message): void
 {
     $separator = str_contains($redirect, '?') ? '&' : '?';
