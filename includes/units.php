@@ -89,6 +89,24 @@ function unit_sequence_from_number(string $unitNumber): ?array
     ];
 }
 
+function unit_number_sequence_rank(string $unitNumber): ?int
+{
+    $sequence = unit_sequence_from_number($unitNumber);
+
+    if ($sequence === null) {
+        return null;
+    }
+
+    $letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
+    $letterIndex = array_search($sequence['letter'], $letters, true);
+
+    if ($letterIndex === false) {
+        return null;
+    }
+
+    return (($sequence['floor'] - 1) * count($letters)) + $letterIndex;
+}
+
 function unit_default_number_for_property(array $property, int $offset = 0): string
 {
     $floors = max(1, (int) ($property['total_floors'] ?? 0));
@@ -108,11 +126,31 @@ function unit_next_number_for_property(int $propertyId): string
         throw new InvalidArgumentException('The selected property does not exist.');
     }
 
-    $statement = db()->prepare('SELECT COUNT(*) AS total FROM units WHERE property_id = :property_id');
+    $statement = db()->prepare(
+        'SELECT unit_number
+         FROM units
+         WHERE property_id = :property_id'
+    );
     $statement->execute(['property_id' => $propertyId]);
-    $count = (int) (($statement->fetch() ?: [])['total'] ?? 0);
+    $maxRank = -1;
 
-    return unit_default_number_for_property($property, $count);
+    foreach ($statement->fetchAll() ?: [] as $row) {
+        $rank = unit_number_sequence_rank((string) ($row['unit_number'] ?? ''));
+
+        if ($rank !== null && $rank > $maxRank) {
+            $maxRank = $rank;
+        }
+    }
+
+    if ($maxRank < 0) {
+        return unit_default_number_for_property($property, 0);
+    }
+
+    if ($maxRank >= 97) {
+        throw new RuntimeException('The flat number pattern is full.');
+    }
+
+    return unit_number_from_sequence(intdiv($maxRank + 1, 7) + 1, ($maxRank + 1) % 7);
 }
 
 function unit_base_columns(): string
@@ -275,16 +313,26 @@ function list_unit_records(int $limit = 50, int $offset = 0, ?string $search = n
         $params['property_id'] = $propertyId;
     }
 
-    $statement = db()->prepare(
-        'SELECT ' . unit_base_columns() . '
-         FROM units u
-         INNER JOIN properties p ON p.id = u.property_id
-         LEFT JOIN property_types pt ON pt.id = p.property_type_id
-         LEFT JOIN users cu ON cu.id = u.created_by
-         WHERE ' . implode(' AND ', $where) . '
-         ORDER BY u.updated_at DESC, u.created_at DESC
-         LIMIT :limit OFFSET :offset'
-    );
+    $sql = <<<SQL
+SELECT %s
+FROM units u
+INNER JOIN properties p ON p.id = u.property_id
+LEFT JOIN property_types pt ON pt.id = p.property_type_id
+LEFT JOIN users cu ON cu.id = u.created_by
+WHERE %s
+ORDER BY
+    CASE
+        WHEN u.unit_number REGEXP '^[0-9]+\\s*-\\s*[A-Ga-g]$' THEN 0
+        ELSE 1
+    END,
+    CAST(TRIM(SUBSTRING_INDEX(u.unit_number, '-', 1)) AS UNSIGNED),
+    FIELD(UPPER(TRIM(SUBSTRING_INDEX(u.unit_number, '-', -1))), 'A', 'B', 'C', 'D', 'E', 'F', 'G'),
+    u.updated_at DESC,
+    u.created_at DESC
+LIMIT :limit OFFSET :offset
+SQL;
+
+    $statement = db()->prepare(sprintf($sql, unit_base_columns(), implode(' AND ', $where)));
 
     foreach ($params as $key => $value) {
         $statement->bindValue(':' . $key, $value, PDO::PARAM_STR);

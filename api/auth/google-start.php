@@ -6,6 +6,10 @@ require_once __DIR__ . '/../bootstrap.php';
 
 api_method(['GET']);
 
+if (is_logged_in()) {
+    redirect(google_oauth_post_login_redirect());
+}
+
 if (!google_oauth_enabled()) {
     http_response_code(503);
     header('Content-Type: text/plain; charset=utf-8');
