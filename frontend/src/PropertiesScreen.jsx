@@ -226,7 +226,7 @@ function propertyTypeFormFromType(type) {
 function PropertyCard({ property, canEditProperties, canDeleteProperties, isSelected, onSelect, onEdit, onDelete }) {
   return (
     <article className={isSelected ? 'property-card selected glass' : 'property-card glass'}>
-      <button className="property-card-media" type="button" onClick={() => onSelect(property.id)}>
+      <button className="property-card-media" type="button" onClick={() => onSelect(property)}>
         {property.coverImageUrl || property.imageUrl || property.image ? (
           <img
             src={property.coverImageUrl || property.imageUrl || property.image}
@@ -266,7 +266,7 @@ function PropertyCard({ property, canEditProperties, canDeleteProperties, isSele
         </dl>
 
         <div className="property-card-actions">
-          <button className="secondary-btn" type="button" onClick={() => onSelect(property.id)}>
+          <button className="secondary-btn" type="button" onClick={() => onSelect(property)}>
             View
           </button>
           {canEditProperties ? (
@@ -291,7 +291,7 @@ function PropertyTableRow({ property, canEditProperties, canDeleteProperties, is
   return (
     <tr className={isSelected ? 'property-table-row selected' : 'property-table-row'}>
       <td>
-        <button className="property-table-title" type="button" onClick={() => onSelect(property.id)}>
+        <button className="property-table-title" type="button" onClick={() => onSelect(property)}>
           <span className="property-table-thumb">
             {imageSrc ? (
               <img src={imageSrc} alt={property.coverImageCaption || property.name} />
@@ -331,7 +331,7 @@ function PropertyTableRow({ property, canEditProperties, canDeleteProperties, is
       </td>
       <td>
         <div className="property-row-actions">
-          <button className="secondary-btn property-row-action-btn" type="button" onClick={() => onSelect(property.id)}>
+          <button className="secondary-btn property-row-action-btn" type="button" onClick={() => onSelect(property)}>
             View
           </button>
           {canEditProperties ? (
@@ -373,6 +373,7 @@ function PropertyDetail({
   canEditProperties,
   canDeleteProperties,
   loading,
+  onClose,
   onEdit,
   onDelete,
   onUploadImage,
@@ -415,6 +416,9 @@ function PropertyDetail({
         <div className="section-tools">
           <span className={propertyStatusClass(property.status)}>{PROPERTY_STATUS_LABELS[property.status] || property.statusLabel}</span>
           {property.propertyType ? <span className={propertyTypeBadge(property.propertyType)}>{property.propertyType.name}</span> : null}
+          <button className="secondary-btn" type="button" onClick={onClose}>
+            Back
+          </button>
         </div>
       </div>
 
@@ -1097,7 +1101,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   const [propertyTypes, setPropertyTypes] = useState([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState(null);
   const [selectedProperty, setSelectedProperty] = useState(null);
-  const [propertyFormMode, setPropertyFormMode] = useState('detail');
+  const [propertyFormMode, setPropertyFormMode] = useState('');
   const [propertyForm, setPropertyForm] = useState(defaultPropertyForm());
   const [typeFormMode, setTypeFormMode] = useState('');
   const [typeForm, setTypeForm] = useState(defaultPropertyTypeForm);
@@ -1200,7 +1204,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
           return current;
         }
 
-        return nextProperties[0]?.id ?? null;
+        return null;
       });
 
       if (!nextProperties.length) {
@@ -1295,7 +1299,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   }
 
   function cancelPropertyForm() {
-    setPropertyFormMode('detail');
+    setPropertyFormMode(selectedProperty ? 'detail' : '');
 
     if (selectedProperty) {
       setPropertyForm(propertyFormFromProperty(selectedProperty, propertyTypeOptions));
@@ -1305,6 +1309,8 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
   }
 
   function closePropertyDetail() {
+    setSelectedPropertyId(null);
+    setSelectedProperty(null);
     setPropertyFormMode('');
   }
 
@@ -1568,8 +1574,9 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
     setFilters((current) => ({ ...current, query: searchInput.trim() }));
   }
 
-  function handlePropertySelect(propertyId) {
-    setSelectedPropertyId(propertyId);
+  function handlePropertySelect(property) {
+    setSelectedPropertyId(property.id);
+    setSelectedProperty(property);
     setPropertyFormMode('detail');
   }
 
@@ -1872,6 +1879,7 @@ function PropertiesScreen({ csrfToken, setCsrfToken, session }) {
                   onDelete={handleDeleteProperty}
                   onDeleteImage={handleDeleteImage}
                   onEdit={startEditProperty}
+                  onClose={closePropertyDetail}
                   onUploadImage={handleImageUpload}
                   property={selectedProperty}
                   setImageState={setImageState}
