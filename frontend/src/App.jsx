@@ -7,6 +7,7 @@ import {
   getProperties,
   listUsers,
   loginWithGoogleCode,
+  loginWithGoogleToken,
   logout,
   registerOwner,
   updateProfile,
@@ -47,6 +48,9 @@ const defaultSetup = {
 
 const APP_SCREENS = new Set(['dashboard', 'properties', 'operations', 'units', 'tenants', 'users', 'profile']);
 const DASHBOARD_BOUNDARY_STATE = { authenticatedDashboardBoundary: true };
+const GOOGLE_IDENTITY_SCRIPT_URL = 'https://accounts.google.com/gsi/client';
+
+let googleIdentityScriptPromise = null;
 
 function normalizeScreenHash(hash) {
   return hash.replace(/^#\/?/, '').replace(/^\//, '').trim();
@@ -125,6 +129,44 @@ function getDashboardUrl() {
   }
 
   return `${getFrontendOrigin()}/#`;
+}
+
+function loadGoogleIdentityScript() {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Google sign-in is only available in the browser.'));
+  }
+
+  if (window.google?.accounts?.oauth2) {
+    return Promise.resolve();
+  }
+
+  if (googleIdentityScriptPromise) {
+    return googleIdentityScriptPromise;
+  }
+
+  googleIdentityScriptPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector('script[data-google-identity="true"]');
+
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('Unable to load Google sign-in.')), {
+        once: true
+      });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = GOOGLE_IDENTITY_SCRIPT_URL;
+    script.async = true;
+    script.defer = true;
+    script.dataset.googleIdentity = 'true';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Unable to load Google sign-in.'));
+
+    document.head.appendChild(script);
+  });
+
+  return googleIdentityScriptPromise;
 }
 
 function useDashboardHistoryBoundary(isAuthenticated) {
@@ -504,6 +546,11 @@ function App() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const profileMenuRef = useRef(null);
   const hasSeededAuthenticatedHistory = useRef(false);
+  const googleIdentityClientId = (
+    setup.googleClientId ||
+    import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+    ''
+  ).trim();
 
   const roleLabel = useMemo(() => session?.roleLabel || 'Guest', [session]);
   const googleOauthEnabled = Boolean(setup.googleOauthEnabled);
@@ -883,18 +930,72 @@ function App() {
   }
 
   function handleGoogleLogin() {
-    if (!googleOauthEnabled) {
-      setError('Configure Google sign-in in .env to continue.');
+    resetStatus();
+
+    if (googleIdentityClientId) {
+      setBusyTask('google');
+
+      loadGoogleIdentityScript()
+        .then(() => {
+          if (!window.google?.accounts?.oauth2) {
+            throw new Error('Google sign-in is not available in this browser.');
+          }
+
+          const tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id: googleIdentityClientId,
+            scope: 'openid email profile',
+            ux_mode: 'popup',
+            callback: async (response) => {
+              if (!response?.access_token) {
+                setError('Google sign-in failed. Please try again.');
+                setBusyTask('');
+                return;
+              }
+
+              try {
+                const data = await loginWithGoogleToken(response.access_token);
+
+                setSession(data.user || null);
+                setCsrfToken(data.csrfToken || '');
+                setSetup((current) => ({ ...current, ownerRegistrationOpen: false }));
+                setSummary(null);
+                setDashboardProperties([]);
+                setScreen(data.user?.mustChangePassword ? 'profile' : 'dashboard');
+                setNotice('Signed in with Google.');
+              } catch (err) {
+                setError(err.message || 'Google sign-in failed.');
+              } finally {
+                setBusyTask('');
+              }
+            },
+            error_callback: () => {
+              setBusyTask('');
+              setError('Google sign-in was cancelled or blocked. Please try again.');
+            }
+          });
+
+          tokenClient.requestAccessToken({ prompt: 'select_account' });
+        })
+        .catch((err) => {
+          setBusyTask('');
+          setError(err.message || 'Google sign-in is not configured yet.');
+        });
       return;
     }
 
-    resetStatus();
+    if (googleOauthEnabled) {
+      setBusyTask('google');
 
-    try {
-      window.location.replace('/api/auth/google-start.php');
-    } catch (err) {
-      setError(err.message || 'Google sign-in is not configured yet.');
+      try {
+        window.location.replace('/api/auth/google-start.php');
+      } catch (err) {
+        setBusyTask('');
+        setError(err.message || 'Google sign-in is not configured yet.');
+      }
+      return;
     }
+
+    setError('Google login is not configured. Set `VITE_GOOGLE_CLIENT_ID` for popup login, or configure `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` in the backend for redirect login.');
   }
 
   async function handleRegister(event) {
@@ -1090,13 +1191,14 @@ function App() {
 
   if (!session) {
     return (
-      <AuthScreen
-        error={error}
-        googleOauthEnabled={googleOauthEnabled}
-        busyTask={busyTask}
-        notice={notice}
-        onGoogleLogin={handleGoogleLogin}
-      />
+        <AuthScreen
+          error={error}
+          googleClientId={googleIdentityClientId}
+          googleOauthEnabled={googleOauthEnabled}
+          busyTask={busyTask}
+          notice={notice}
+          onGoogleLogin={handleGoogleLogin}
+        />
     );
   }
 
@@ -1325,6 +1427,7 @@ function App() {
 function AuthScreen({
   busyTask,
   error,
+  googleClientId,
   googleOauthEnabled,
   notice,
   onGoogleLogin
@@ -1380,37 +1483,26 @@ function AuthScreen({
           </p>
 
           <div className="google-official-wrap">
-            {googleOauthEnabled ? (
-              <button
-                className="google-btn"
-                type="button"
-                onClick={onGoogleLogin}
-                disabled={busyTask === 'google'}
-              >
-                <span className="google-badge" aria-hidden="true">
-                  G
-                </span>
-                <span>{busyTask === 'google' ? 'Connecting...' : 'Continue with Google'}</span>
-              </button>
-            ) : (
-              <button className="google-btn" type="button" disabled>
-                <span className="google-badge" aria-hidden="true">
-                  G
-                </span>
-                <span>Continue with Google</span>
-              </button>
-            )}
+            <button
+              className="google-btn"
+              type="button"
+              onClick={onGoogleLogin}
+              disabled={busyTask === 'google'}
+            >
+              <span className="google-badge" aria-hidden="true">
+                G
+              </span>
+              <span>{busyTask === 'google' ? 'Connecting...' : 'Continue with Google'}</span>
+            </button>
           </div>
 
-          {!googleOauthEnabled ? (
-            <p className="helper-text">
-              Configure `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` in `.env` to enable login.
-            </p>
-          ) : (
-            <p className="helper-text">
-              Redirect URI: http://localhost:8000/api/auth/google-callback.php
-            </p>
-          )}
+          <p className="helper-text">
+            {googleClientId
+              ? 'Google sign-in is enabled. Use your Google account to continue.'
+              : googleOauthEnabled
+                ? 'Google sign-in is enabled in the backend configuration.'
+                : 'Google login is not configured. Set VITE_GOOGLE_CLIENT_ID for popup login, or configure GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REDIRECT_URI in the backend for redirect login.'}
+          </p>
 
           {error ? <div className="alert error">{error}</div> : null}
           {notice ? <div className="alert success">{notice}</div> : null}
