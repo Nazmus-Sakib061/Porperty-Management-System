@@ -114,6 +114,18 @@ const defaultLeaseForm = {
   serviceCharge: '',
   electricityMeterNo: '',
   gasMeterNo: '',
+  whatsappNumber: '',
+  email: '',
+  nidNumber: '',
+  occupation: '',
+  permanentAddress: '',
+  emergencyContactName: '',
+  emergencyContactNumber: '',
+  paymentDueDay: '',
+  nidCardPath: '',
+  customerPhotoPath: '',
+  businessCertificateOrJobIdPath: '',
+  agreementFilePath: '',
   status: 'draft',
   notes: ''
 };
@@ -145,6 +157,13 @@ export default function OperationsScreen({ csrfToken = '' }) {
   const [leaseError, setLeaseError] = useState('');
   const [unitError, setUnitError] = useState('');
   const [leaseForm, setLeaseForm] = useState(defaultLeaseForm);
+  const [leaseFiles, setLeaseFiles] = useState({
+    nidCardFile: null,
+    customerPhoto: null,
+    businessCertificateOrJobId: null,
+    agreementFile: null
+  });
+  const [leaseFileInputKey, setLeaseFileInputKey] = useState(0);
   const [unitFormMode, setUnitFormMode] = useState('');
   const [unitForm, setUnitForm] = useState(defaultUnitForm);
 
@@ -356,6 +375,13 @@ export default function OperationsScreen({ csrfToken = '' }) {
 
   function resetLeaseForm() {
     setLeaseForm(defaultLeaseForm);
+    setLeaseFiles({
+      nidCardFile: null,
+      customerPhoto: null,
+      businessCertificateOrJobId: null,
+      agreementFile: null
+    });
+    setLeaseFileInputKey((current) => current + 1);
     setLeaseError('');
   }
 
@@ -442,9 +468,28 @@ export default function OperationsScreen({ csrfToken = '' }) {
       serviceCharge: lease.serviceCharge ?? '',
       electricityMeterNo: lease.electricityMeterNo || '',
       gasMeterNo: lease.gasMeterNo || '',
+      whatsappNumber: lease.whatsappNumber || '',
+      email: lease.email || '',
+      nidNumber: lease.nidNumber || '',
+      occupation: lease.occupation || '',
+      permanentAddress: lease.permanentAddress || '',
+      emergencyContactName: lease.emergencyContactName || '',
+      emergencyContactNumber: lease.emergencyContactNumber || '',
+      paymentDueDay: lease.paymentDueDay ?? '',
+      nidCardPath: lease.nidCardPath || '',
+      customerPhotoPath: lease.customerPhotoPath || '',
+      businessCertificateOrJobIdPath: lease.businessCertificateOrJobIdPath || '',
+      agreementFilePath: lease.agreementFilePath || '',
       status: lease.status || 'draft',
       notes: lease.notes || ''
     });
+    setLeaseFiles({
+      nidCardFile: null,
+      customerPhoto: null,
+      businessCertificateOrJobId: null,
+      agreementFile: null
+    });
+    setLeaseFileInputKey((current) => current + 1);
   }
 
   async function handleLeaseSubmit(event) {
@@ -453,13 +498,48 @@ export default function OperationsScreen({ csrfToken = '' }) {
     setLeaseError('');
 
     try {
-      const payload = {
-        ...leaseForm,
-        csrfToken,
-        id: leaseForm.id ? Number(leaseForm.id) : undefined,
-        tenantId: Number(leaseForm.tenantId),
-        unitId: Number(leaseForm.unitId)
-      };
+      const payload = new FormData();
+      payload.append('csrfToken', csrfToken);
+      if (leaseForm.id) {
+        payload.append('id', String(Number(leaseForm.id)));
+      }
+      payload.append('tenantId', String(Number(leaseForm.tenantId)));
+      payload.append('unitId', String(Number(leaseForm.unitId)));
+      payload.append('leaseStartDate', leaseForm.leaseStartDate);
+      payload.append('leaseEndDate', leaseForm.leaseEndDate);
+      payload.append('noticeDate', leaseForm.noticeDate);
+      payload.append('moveOutDate', leaseForm.moveOutDate);
+      payload.append('rentAmount', leaseForm.rentAmount);
+      payload.append('securityDeposit', leaseForm.securityDeposit);
+      payload.append('serviceCharge', leaseForm.serviceCharge);
+      payload.append('electricityMeterNo', leaseForm.electricityMeterNo);
+      payload.append('gasMeterNo', leaseForm.gasMeterNo);
+      payload.append('whatsappNumber', leaseForm.whatsappNumber);
+      payload.append('email', leaseForm.email);
+      payload.append('nidNumber', leaseForm.nidNumber);
+      payload.append('occupation', leaseForm.occupation);
+      payload.append('permanentAddress', leaseForm.permanentAddress);
+      payload.append('emergencyContactName', leaseForm.emergencyContactName);
+      payload.append('emergencyContactNumber', leaseForm.emergencyContactNumber);
+      payload.append('paymentDueDay', leaseForm.paymentDueDay);
+      payload.append('status', leaseForm.status);
+      payload.append('notes', leaseForm.notes);
+
+      if (leaseFiles.nidCardFile) {
+        payload.append('nid_card_file', leaseFiles.nidCardFile);
+      }
+
+      if (leaseFiles.customerPhoto) {
+        payload.append('customer_photo', leaseFiles.customerPhoto);
+      }
+
+      if (leaseFiles.businessCertificateOrJobId) {
+        payload.append('business_certificate_or_job_id', leaseFiles.businessCertificateOrJobId);
+      }
+
+      if (leaseFiles.agreementFile) {
+        payload.append('agreement_file', leaseFiles.agreementFile);
+      }
 
       const response = leaseForm.id ? await updateLease(payload) : await createLease(payload);
       const updatedLease = response.lease;
@@ -681,6 +761,179 @@ export default function OperationsScreen({ csrfToken = '' }) {
                 />
               </label>
 
+              <div className="form-two-up span-2">
+                <label>
+                  WhatsApp Number
+                  <input
+                    type="tel"
+                    placeholder="01XXXXXXXXX"
+                    value={leaseForm.whatsappNumber}
+                    onChange={(event) => setLeaseForm((current) => ({ ...current, whatsappNumber: event.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  Email ID
+                  <input
+                    type="email"
+                    placeholder="customer@example.com"
+                    value={leaseForm.email}
+                    onChange={(event) => setLeaseForm((current) => ({ ...current, email: event.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <div className="form-two-up span-2">
+                <label>
+                  NID Number
+                  <input
+                    type="text"
+                    placeholder="Enter customer NID number"
+                    value={leaseForm.nidNumber}
+                    onChange={(event) => setLeaseForm((current) => ({ ...current, nidNumber: event.target.value }))}
+                  />
+                </label>
+
+                <label>
+                  Occupation
+                  <input
+                    type="text"
+                    placeholder="Business / Service / Student / Other"
+                    value={leaseForm.occupation}
+                    onChange={(event) => setLeaseForm((current) => ({ ...current, occupation: event.target.value }))}
+                  />
+                </label>
+              </div>
+
+              <label className="lease-notes-field">
+                Permanent Address
+                <textarea
+                  rows="3"
+                  value={leaseForm.permanentAddress}
+                  onChange={(event) =>
+                    setLeaseForm((current) => ({ ...current, permanentAddress: event.target.value }))
+                  }
+                  placeholder="Enter permanent address"
+                />
+              </label>
+
+              <div className="form-two-up span-2">
+                <label>
+                  Emergency Contact Name
+                  <input
+                    type="text"
+                    placeholder="Enter emergency contact name"
+                    value={leaseForm.emergencyContactName}
+                    onChange={(event) =>
+                      setLeaseForm((current) => ({ ...current, emergencyContactName: event.target.value }))
+                    }
+                  />
+                </label>
+
+                <label>
+                  Emergency Contact Number
+                  <input
+                    type="tel"
+                    placeholder="01XXXXXXXXX"
+                    value={leaseForm.emergencyContactNumber}
+                    onChange={(event) =>
+                      setLeaseForm((current) => ({ ...current, emergencyContactNumber: event.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="form-two-up span-2">
+                <label>
+                  Security Deposit
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={leaseForm.securityDeposit}
+                    onChange={(event) =>
+                      setLeaseForm((current) => ({ ...current, securityDeposit: event.target.value }))
+                    }
+                  />
+                </label>
+
+                <label>
+                  Payment Due Day
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    step="1"
+                    placeholder="1-31"
+                    value={leaseForm.paymentDueDay}
+                    onChange={(event) =>
+                      setLeaseForm((current) => ({ ...current, paymentDueDay: event.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="form-two-up span-2">
+                <label className="lease-notes-field">
+                  NID Card Photocopy
+                  <input
+                    key={`nid-card-${leaseFileInputKey}`}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(event) =>
+                      setLeaseFiles((current) => ({ ...current, nidCardFile: event.target.files?.[0] || null }))
+                    }
+                  />
+                  {leaseForm.nidCardPath ? <span className="helper-text">Current file on record.</span> : null}
+                </label>
+
+                <label className="lease-notes-field">
+                  Customer Photo
+                  <input
+                    key={`customer-photo-${leaseFileInputKey}`}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      setLeaseFiles((current) => ({ ...current, customerPhoto: event.target.files?.[0] || null }))
+                    }
+                  />
+                  {leaseForm.customerPhotoPath ? <span className="helper-text">Current file on record.</span> : null}
+                </label>
+              </div>
+
+              <div className="form-two-up span-2">
+                <label className="lease-notes-field">
+                  Business Certificate / Job ID Photocopy
+                  <input
+                    key={`business-doc-${leaseFileInputKey}`}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(event) =>
+                      setLeaseFiles((current) => ({
+                        ...current,
+                        businessCertificateOrJobId: event.target.files?.[0] || null
+                      }))
+                    }
+                  />
+                  {leaseForm.businessCertificateOrJobIdPath ? (
+                    <span className="helper-text">Current file on record.</span>
+                  ) : null}
+                </label>
+
+                <label className="lease-notes-field">
+                  Agreement File
+                  <input
+                    key={`agreement-file-${leaseFileInputKey}`}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(event) =>
+                      setLeaseFiles((current) => ({ ...current, agreementFile: event.target.files?.[0] || null }))
+                    }
+                  />
+                  {leaseForm.agreementFilePath ? <span className="helper-text">Current file on record.</span> : null}
+                </label>
+              </div>
+
               <label>
                 Status
                 <select
@@ -703,7 +956,7 @@ export default function OperationsScreen({ csrfToken = '' }) {
                   onChange={(event) => setLeaseForm((current) => ({ ...current, notes: event.target.value }))}
                   placeholder="Agreement notes, reminders, special terms, or move-out instructions."
                 />
-              </label>
+                </label>
 
               <div className="lease-form-actions">
                 <button className="primary-btn" type="submit" disabled={leaseSaving}>

@@ -22,6 +22,7 @@ api_response([
                 'googleLoginEnabled' => google_identity_enabled(),
                 'googleOauthEnabled' => google_oauth_enabled(),
                 'googleClientId' => google_identity_client_id(),
+                'googleRedirectUri' => google_oauth_redirect_uri(),
             ];
         } catch (Throwable $exception) {
             return [
@@ -31,6 +32,7 @@ api_response([
                 'googleLoginEnabled' => google_identity_enabled(),
                 'googleOauthEnabled' => google_oauth_enabled(),
                 'googleClientId' => google_identity_client_id(),
+                'googleRedirectUri' => google_oauth_redirect_uri(),
             ];
         }
     })(),

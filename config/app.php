@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
     'name' => 'Property Management System',
     'base_url' => getenv('APP_BASE_URL') ?: '/',
+    'frontend_url' => getenv('APP_FRONTEND_URL') ?: 'http://localhost:5173/',
     'timezone' => getenv('APP_TIMEZONE') ?: 'Asia/Dhaka',
     'session_name' => getenv('APP_SESSION_NAME') ?: 'property_mgmt_session',
     'session_secure' => filter_var(getenv('APP_SESSION_SECURE') ?: '0', FILTER_VALIDATE_BOOL),
@@ -36,7 +37,7 @@ return [
             'client_id' => getenv('GOOGLE_CLIENT_ID') ?: '',
             'client_secret' => getenv('GOOGLE_CLIENT_SECRET') ?: '',
             'redirect_uri' => getenv('GOOGLE_REDIRECT_URI') ?: '',
-            'post_login_redirect' => getenv('APP_POST_LOGIN_REDIRECT') ?: (getenv('APP_FRONTEND_URL') ?: 'http://localhost:5173/'),
+            'post_login_redirect' => getenv('APP_POST_LOGIN_REDIRECT') ?: rtrim((getenv('APP_FRONTEND_URL') ?: 'http://localhost:5173/'), '/') . '#/dashboard',
         ],
     ],
     'legacy_roles' => [

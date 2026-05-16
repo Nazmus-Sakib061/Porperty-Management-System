@@ -79,6 +79,23 @@ header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
+$frontendOrigin = rtrim((string) (getenv('APP_FRONTEND_URL') ?: 'http://localhost:5173/'), '/');
+$requestOrigin = trim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''));
+
+if ($requestOrigin !== '' && $requestOrigin === $frontendOrigin) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
+    header('Access-Control-Allow-Credentials: true');
+    header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, X-Requested-With, X-CSRF-Token, Authorization');
+    header('Access-Control-Expose-Headers: Location, Content-Type');
+    header('Vary: Origin');
+
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+        http_response_code(204);
+        exit;
+    }
+}
+
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/users.php';
 require_once __DIR__ . '/oauth.php';
