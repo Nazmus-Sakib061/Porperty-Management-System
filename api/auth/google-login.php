@@ -29,10 +29,8 @@ $isGoogleFormPost = $idToken !== '' && isset($_POST['credential']);
 
 function google_login_redirect(string $message): void
 {
-    $redirect = google_oauth_post_login_redirect();
-    $separator = str_contains($redirect, '?') ? '&' : '?';
-
-    header('Location: ' . $redirect . $separator . 'auth=' . rawurlencode($message));
+    $redirect = append_query_param_to_url(google_oauth_post_login_redirect(), 'auth', $message);
+    header('Location: ' . $redirect);
     exit;
 }
 

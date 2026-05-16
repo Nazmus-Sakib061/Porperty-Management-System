@@ -14,11 +14,64 @@ function google_oauth_config(?string $key = null, mixed $default = null): mixed
     return $google[$key] ?? $default;
 }
 
+function google_oauth_redirect_uri(): string
+{
+    $redirectUri = trim((string) google_oauth_config('redirect_uri', ''));
+
+    if ($redirectUri === '') {
+        return '';
+    }
+
+    $duplicatePrefix = 'GOOGLE_REDIRECT_URI=';
+
+    while (str_starts_with($redirectUri, $duplicatePrefix)) {
+        $redirectUri = trim(substr($redirectUri, strlen($duplicatePrefix)));
+    }
+
+    return trim($redirectUri, " \t\n\r\0\x0B\"'");
+}
+
+function append_query_param_to_url(string $url, string $key, string $value): string
+{
+    $parts = parse_url($url);
+
+    if ($parts === false) {
+        $separator = str_contains($url, '?') ? '&' : '?';
+        return $url . $separator . rawurlencode($key) . '=' . rawurlencode($value);
+    }
+
+    $scheme = isset($parts['scheme']) ? $parts['scheme'] . '://' : '';
+    $host = (string) ($parts['host'] ?? '');
+    $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+    $user = (string) ($parts['user'] ?? '');
+    $pass = (string) ($parts['pass'] ?? '');
+    $auth = $user !== '' ? $user . ($pass !== '' ? ':' . $pass : '') . '@' : '';
+    $path = (string) ($parts['path'] ?? '');
+    $query = (string) ($parts['query'] ?? '');
+    $fragment = (string) ($parts['fragment'] ?? '');
+
+    parse_str($query, $params);
+    $params[$key] = $value;
+    $queryString = http_build_query($params, '', '&', PHP_QUERY_RFC3986);
+
+    $rebuilt = $scheme . $auth . $host . $port . $path;
+
+    if ($queryString !== '') {
+      $rebuilt .= '?' . $queryString;
+    }
+
+    if ($fragment !== '') {
+      $rebuilt .= '#' . $fragment;
+    }
+
+    return $rebuilt;
+}
+
 function google_oauth_enabled(): bool
 {
     return trim((string) google_oauth_config('client_id', '')) !== ''
         && trim((string) google_oauth_config('client_secret', '')) !== ''
-        && trim((string) google_oauth_config('redirect_uri', '')) !== '';
+        && google_oauth_redirect_uri() !== '';
 }
 
 function google_identity_client_id(): string
@@ -36,7 +89,7 @@ function google_oauth_authorize_url(string $state): string
     $query = http_build_query(
         [
             'client_id' => (string) google_oauth_config('client_id', ''),
-            'redirect_uri' => (string) google_oauth_config('redirect_uri', ''),
+            'redirect_uri' => google_oauth_redirect_uri(),
             'response_type' => 'code',
             'scope' => 'openid email profile',
             'access_type' => 'online',
@@ -49,6 +102,11 @@ function google_oauth_authorize_url(string $state): string
     );
 
     return 'https://accounts.google.com/o/oauth2/v2/auth?' . $query;
+}
+
+function google_oauth_debug_authorize_url(string $state): string
+{
+    return google_oauth_authorize_url($state);
 }
 
 function google_oauth_post_login_redirect(): string
@@ -124,7 +182,7 @@ function google_oauth_exchange_code(string $code): array
             'code' => $code,
             'client_id' => (string) google_oauth_config('client_id', ''),
             'client_secret' => (string) google_oauth_config('client_secret', ''),
-            'redirect_uri' => (string) google_oauth_config('redirect_uri', ''),
+            'redirect_uri' => google_oauth_redirect_uri(),
             'grant_type' => 'authorization_code',
         ]
     );

@@ -42,7 +42,8 @@ const defaultSetup = {
   roles: [],
   googleLoginEnabled: false,
   googleOauthEnabled: false,
-  googleClientId: ''
+  googleClientId: '',
+  googleRedirectUri: ''
 };
 
 const APP_SCREENS = new Set(['dashboard', 'properties', 'operations', 'units', 'tenants', 'users', 'profile']);
@@ -63,7 +64,8 @@ function getInitialScreen() {
 }
 
 function isDashboardRouteHash(hash) {
-  return normalizeScreenHash(hash) === '';
+  const normalized = normalizeScreenHash(hash);
+  return normalized === '' || normalized === 'dashboard';
 }
 
 function isAuthLikeLocation() {
@@ -104,12 +106,12 @@ function syncScreenHash(screen, mode = 'replace', baseOrigin = null) {
   const safeOrigin = origin.includes('5173') ? origin : getFrontendOrigin();
 
   if (screen === 'dashboard') {
-    url.hash = '';
+    url.hash = '/dashboard';
   } else {
     url.hash = `/${screen}`;
   }
 
-  const nextUrl = `${safeOrigin}/#${screen === 'dashboard' ? '' : `/${screen}`}`;
+  const nextUrl = `${safeOrigin}/#${screen === 'dashboard' ? '/dashboard' : `/${screen}`}`;
 
   if (mode === 'push') {
     window.history.pushState({ screen }, '', nextUrl);
@@ -124,7 +126,7 @@ function getDashboardUrl() {
     return '/';
   }
 
-  return `${getFrontendOrigin()}/#`;
+  return `${getFrontendOrigin()}/#/dashboard`;
 }
 
 function useDashboardHistoryBoundary(isAuthenticated) {
@@ -507,6 +509,7 @@ function App() {
 
   const roleLabel = useMemo(() => session?.roleLabel || 'Guest', [session]);
   const googleOauthEnabled = Boolean(setup.googleOauthEnabled);
+  const googleRedirectUri = String(setup.googleRedirectUri || '').trim();
   const canManageUsers = Boolean(session?.permissions?.canManageUsers);
   const canViewTenants = Boolean(session?.permissions?.canViewTenants);
   const ownerRegistrationOpen = Boolean(setup.ownerRegistrationOpen);
@@ -650,6 +653,18 @@ function App() {
       setError('Google sign-in is not configured yet. Check the Google settings in .env.');
     } else if (authMessage === 'google_success') {
       setNotice('Signed in with Google.');
+      getSession()
+        .then((data) => {
+          if (data?.user) {
+            setSession(data.user);
+            setCsrfToken(data.csrfToken || '');
+            setSetup(data.setup || defaultSetup);
+            setScreen(data.user.mustChangePassword ? 'profile' : 'dashboard');
+          }
+        })
+        .catch(() => {
+          // Keep the success notice; the boot-time session check will handle retries if needed.
+        });
     }
 
     url.searchParams.delete('auth');
@@ -891,7 +906,7 @@ function App() {
     resetStatus();
 
     try {
-      window.location.replace('/api/auth/google-start.php');
+      window.location.replace('http://localhost/Property-Management-System/api/auth/google-start.php');
     } catch (err) {
       setError(err.message || 'Google sign-in is not configured yet.');
     }
@@ -1093,6 +1108,7 @@ function App() {
       <AuthScreen
         error={error}
         googleOauthEnabled={googleOauthEnabled}
+        googleRedirectUri={googleRedirectUri}
         busyTask={busyTask}
         notice={notice}
         onGoogleLogin={handleGoogleLogin}
@@ -1326,6 +1342,7 @@ function AuthScreen({
   busyTask,
   error,
   googleOauthEnabled,
+  googleRedirectUri = 'http://localhost/Property-Management-System/api/auth/google-callback.php',
   notice,
   onGoogleLogin
 }) {
@@ -1404,11 +1421,11 @@ function AuthScreen({
 
           {!googleOauthEnabled ? (
             <p className="helper-text">
-              Configure `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URI` in `.env` to enable login.
+              Google login is not configured. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI` in the backend `.env`, then restart the PHP server.
             </p>
           ) : (
             <p className="helper-text">
-              Redirect URI: http://localhost:8000/api/auth/google-callback.php
+              Redirect URI: {googleRedirectUri || 'http://localhost/Property-Management-System/api/auth/google-callback.php'}
             </p>
           )}
 

@@ -44,15 +44,18 @@ Phase 4 adds tenant management with unit mapping, photo upload, and document upl
    ```
 7. Configure Google sign-in in `.env`:
    ```env
+   APP_BASE_URL=/Property-Management-System/
+   APP_FRONTEND_URL=http://localhost:5173/
+   APP_POST_LOGIN_REDIRECT=http://localhost:5173/#/dashboard
    GOOGLE_CLIENT_ID=your-client-id
-   # Optional legacy redirect flow:
-   # GOOGLE_CLIENT_SECRET=your-client-secret
-   # GOOGLE_REDIRECT_URI=http://localhost:8000/api/auth/google-callback.php
-   # APP_FRONTEND_URL=http://localhost:5173/
-   # APP_POST_LOGIN_REDIRECT=http://localhost:5173/
+   GOOGLE_CLIENT_SECRET=your-client-secret
+   GOOGLE_REDIRECT_URI=http://localhost/Property-Management-System/api/auth/google-callback.php
    ```
-   The React app uses the popup/account-chooser flow, so `GOOGLE_CLIENT_ID` is enough for the button to work.
-8. Copy `frontend/.env.example` to `frontend/.env` if you want to override the API base URL.
+   Google Cloud Console should include:
+   - Authorized JavaScript origins: `http://localhost:5173`
+   - Authorized redirect URIs: `http://localhost/Property-Management-System/api/auth/google-callback.php`
+   The backend handles the redirect flow, and the React app only starts it.
+8. Copy `frontend/.env.example` to `frontend/.env` if you want to override the API base URL. The default points React to the Apache backend at `http://localhost/Property-Management-System/api`.
 
 ## Run
 

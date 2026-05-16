@@ -1,4 +1,6 @@
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+const DEFAULT_API_BASE = 'http://localhost/Property-Management-System/api';
+
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE).replace(/\/$/, '');
 
 async function request(path, options = {}) {
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;

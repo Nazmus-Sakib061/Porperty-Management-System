@@ -20,5 +20,7 @@ if (!google_oauth_enabled()) {
 $_SESSION['google_oauth_state'] = bin2hex(random_bytes(24));
 $_SESSION['google_oauth_started_at'] = time();
 
-header('Location: ' . google_oauth_authorize_url((string) $_SESSION['google_oauth_state']));
+$authorizeUrl = google_oauth_authorize_url((string) $_SESSION['google_oauth_state']);
+error_log('Google OAuth authorize URL: ' . $authorizeUrl);
+header('Location: ' . $authorizeUrl);
 exit;

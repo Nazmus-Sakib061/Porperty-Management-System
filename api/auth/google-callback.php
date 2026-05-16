@@ -14,8 +14,7 @@ if (is_logged_in()) {
 
 function redirect_with_message(string $redirect, string $message): void
 {
-    $separator = str_contains($redirect, '?') ? '&' : '?';
-    header('Location: ' . $redirect . $separator . 'auth=' . rawurlencode($message));
+    header('Location: ' . append_query_param_to_url($redirect, 'auth', $message));
     exit;
 }
 
